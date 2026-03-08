@@ -1,5 +1,6 @@
 import pytest
 from sqlalchemy import create_engine
+from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import sessionmaker
 
 import garminview.models  # noqa: F401 — registers all models with Base.metadata
@@ -14,8 +15,14 @@ def test_config():
 
 @pytest.fixture(scope="function")
 def engine(test_config):
-    from garminview.core.database import create_db_engine
-    eng = create_db_engine(test_config)
+    # StaticPool keeps a single in-memory connection shared across all
+    # sessions — required for in-memory SQLite so all connections see the
+    # same tables created by Base.metadata.create_all().
+    eng = create_engine(
+        "sqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(eng)
     yield eng
     Base.metadata.drop_all(eng)
