@@ -24,7 +24,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
-    from garminview.api.routes import health_check, activities, training, body, admin, sync, assessments
+    from garminview.api.routes import health_check, activities, training, body, admin, sync, assessments, export
 
     app.include_router(health_check.router, prefix="/health", tags=["health"])
     app.include_router(activities.router, prefix="/activities", tags=["activities"])
@@ -33,6 +33,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     app.include_router(admin.router, prefix="/admin", tags=["admin"])
     app.include_router(sync.router, prefix="/sync", tags=["sync"])
     app.include_router(assessments.router, prefix="/assessments", tags=["assessments"])
+    app.include_router(export.router)
 
     # Wire real DB session factory via dependency_overrides
     factory = get_session_factory(engine)
