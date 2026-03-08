@@ -43,7 +43,9 @@ Marimo notebooks  ──  ad-hoc exploration
 
 ```bash
 # 1. Download Garmin data (one-time)
-cd ~/Github/GarminDB && make setup && make create_dbs
+uv tool install garmindb
+# edit ~/.GarminDb/GarminConnectConfig.json with your credentials
+garmindb_cli.py --all --download --import --analyze
 
 # 2. Ingest into garminview + start backend
 cd ~/Github/garminview/backend

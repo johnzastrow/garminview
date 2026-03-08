@@ -11,25 +11,16 @@ This guide walks you through every step from a clean machine to a running Garmin
 | Python 3.10+ | `python3 --version` |
 | [uv](https://docs.astral.sh/uv/) | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
 | Node.js 18+ | `node --version` |
-| Git | with SSH keys configured (GarminDB uses SSH submodules) |
+| Git | for cloning GarminView |
 | Garmin Connect account | username + password |
 
 ---
 
-## Step 1 — Clone the repos
-
-GarminView depends on GarminDB to download your raw Garmin data files.
-Both repos should live side by side under a common parent (e.g. `~/Github/`).
+## Step 1 — Clone GarminView
 
 ```bash
-mkdir -p ~/Github
-cd ~/Github
-
-# GarminView (this project)
+mkdir -p ~/Github && cd ~/Github
 git clone git@github.com:<you>/garminview.git
-
-# GarminDB — bulk downloader + FIT parser
-git clone git@github.com:tcgoetz/GarminDB.git
 ```
 
 ---
@@ -37,21 +28,25 @@ git clone git@github.com:tcgoetz/GarminDB.git
 ## Step 2 — Configure and run GarminDB
 
 GarminDB downloads your data from Garmin Connect into `~/HealthData/` and parses
-FIT files into its own SQLite database. GarminView then reads from `~/HealthData/`
-via its own ingestion adapters.
+FIT files. GarminView then reads from `~/HealthData/` via its own ingestion adapters.
 
 ### 2a. Install GarminDB
 
+GarminDB is on PyPI. Install it as a `uv` tool so it manages its own isolated
+environment and puts `garmindb_cli.py` on your PATH automatically:
+
 ```bash
-cd ~/Github/GarminDB
-make setup          # creates .venv, installs deps, initialises submodules
+uv tool install garmindb
 ```
+
+Verify: `garmindb_cli.py --version`
 
 ### 2b. Create GarminDB config
 
 ```bash
 mkdir -p ~/.GarminDb
-cp garmindb/GarminConnectConfig.json.example ~/.GarminDb/GarminConnectConfig.json
+curl -o ~/.GarminDb/GarminConnectConfig.json \
+  https://raw.githubusercontent.com/tcgoetz/GarminDB/master/garmindb/GarminConnectConfig.json.example
 ```
 
 Open `~/.GarminDb/GarminConnectConfig.json` and fill in:
@@ -83,8 +78,7 @@ Earlier dates = more history but longer first download.
 ### 2c. Initial download (first time only)
 
 ```bash
-cd ~/Github/GarminDB
-make create_dbs
+garmindb_cli.py --all --download --import --analyze
 ```
 
 This downloads all your history from Garmin Connect and imports it into
@@ -109,8 +103,7 @@ When it finishes, `~/HealthData/` will contain:
 ### 2d. Incremental updates (daily / weekly)
 
 ```bash
-cd ~/Github/GarminDB
-make                       # downloads + imports only new data
+garmindb_cli.py --all --download --import --analyze --latest
 ```
 
 ---
@@ -242,7 +235,7 @@ Run this sequence whenever you want fresh data (automate with cron or systemd):
 
 ```bash
 # 1. Download latest from Garmin Connect
-cd ~/Github/GarminDB && make
+garmindb_cli.py --all --download --import --analyze --latest
 
 # 2. Ingest into garminview (last 7 days)
 cd ~/Github/garminview/backend
@@ -263,7 +256,7 @@ with get_session_factory(engine)() as s:
 ### Example cron (daily at 06:00)
 
 ```cron
-0 6 * * * cd ~/Github/GarminDB && make >> ~/garmindb.log 2>&1
+0 6 * * * garmindb_cli.py --all --download --import --analyze --latest >> ~/garmindb.log 2>&1
 5 6 * * * cd ~/Github/garminview/backend && .venv/bin/python -c "..." >> ~/garminview.log 2>&1
 ```
 
@@ -277,15 +270,14 @@ Run `uv run alembic upgrade head` — migrations haven't been applied yet.
 
 ### GarminDB login fails / MFA prompt
 
-Garmin Connect sometimes requires MFA. Run GarminDB interactively the first time
-so you can complete the MFA flow:
+Garmin Connect sometimes requires MFA on first login. Run the CLI directly in
+your terminal so you can respond to the prompt:
 
 ```bash
-cd ~/Github/GarminDB
-.venv/bin/garmindb_cli.py --all --download --import --analyze --latest
+garmindb_cli.py --all --download --import --analyze --latest
 ```
 
-Follow any prompts, then subsequent `make` runs will use the cached session.
+Follow the on-screen MFA prompt. Subsequent runs will use the cached session.
 
 ### `~/HealthData` not found / wrong path
 
