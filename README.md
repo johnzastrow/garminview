@@ -42,13 +42,15 @@ Marimo notebooks  ──  ad-hoc exploration
 ## At a glance
 
 ```bash
-# 1. Download Garmin data (one-time)
+cd ~/Github/garminview
+
+# 1. Download Garmin data (one-time — runs from anywhere)
 uv tool install garmindb
 # edit ~/.GarminDb/GarminConnectConfig.json with your credentials
 garmindb_cli.py --all --download --import --analyze
 
 # 2. Ingest into garminview + start backend
-cd ~/Github/garminview/backend
+cd backend
 cp ../.env.example .env   # edit GARMINVIEW_HEALTH_DATA_DIR
 uv run alembic upgrade head
 uv run uvicorn garminview.api.main:create_app --factory --reload --port 8000

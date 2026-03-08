@@ -21,19 +21,20 @@ This guide walks you through every step from a clean machine to a running Garmin
 ```bash
 mkdir -p ~/Github && cd ~/Github
 git clone git@github.com:<you>/garminview.git
+cd garminview
 ```
+
+All subsequent steps can be run from this directory.
 
 ---
 
 ## Step 2 — Configure and run GarminDB
 
-GarminDB downloads your data from Garmin Connect into `~/HealthData/` and parses
-FIT files. GarminView then reads from `~/HealthData/` via its own ingestion adapters.
+GarminDB is a PyPI package that downloads your Garmin data into `~/HealthData/`.
+Install it once as a `uv` tool — no separate clone needed, available system-wide
+from any directory.
 
 ### 2a. Install GarminDB
-
-GarminDB is on PyPI. Install it as a `uv` tool so it manages its own isolated
-environment and puts `garmindb_cli.py` on your PATH automatically:
 
 ```bash
 uv tool install garmindb
