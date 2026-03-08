@@ -1,0 +1,23 @@
+{
+  "calendarDate": "2026-01-15",
+  "totalSteps": 8234,
+  "floorsAscended": 12,
+  "totalDistanceMeters": 6543,
+  "totalKilocalories": 2341,
+  "bmrKilocalories": 1800,
+  "activeKilocalories": 541,
+  "averageHeartRate": 68,
+  "minHeartRate": 48,
+  "maxHeartRate": 142,
+  "restingHeartRateValue": 52,
+  "averageStressLevel": 28,
+  "maxBodyBattery": 87,
+  "minBodyBattery": 34,
+  "averageSpo2": 96.5,
+  "averageRespirationValue": 14.2,
+  "totalLiquidConsumptionMl": 2100,
+  "dailyHydrationGoal": 2500,
+  "moderateIntensityMinutes": 45,
+  "vigorousIntensityMinutes": 20,
+  "sleepingSeconds": 28800
+}
