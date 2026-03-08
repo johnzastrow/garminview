@@ -227,7 +227,7 @@ def test_mariadb_url_format():
 **Step 8: Run tests**
 
 ```bash
-cd backend && pip install -e ".[dev]" && pytest tests/test_core.py -v
+cd backend && uv venv && source .venv/bin/activate && uv pip install -e ".[dev]" && uv run pytest tests/test_core.py -v
 ```
 Expected: 2 passed
 
@@ -268,7 +268,7 @@ def test_all_tables_created(engine):
 **Step 2: Run to verify it fails**
 
 ```bash
-pytest tests/test_models.py -v
+uv run pytest tests/test_models.py -v
 ```
 Expected: FAIL — tables not found
 
@@ -660,7 +660,7 @@ import garminview.models  # noqa: F401 — registers all models with Base.metada
 **Step 9: Run tests**
 
 ```bash
-pytest tests/test_models.py -v
+uv run pytest tests/test_models.py -v
 ```
 Expected: PASS
 
@@ -919,7 +919,7 @@ def test_derived_and_config_tables(engine):
 **Step 7: Run tests, commit**
 
 ```bash
-pytest tests/test_models.py -v
+uv run pytest tests/test_models.py -v
 git add backend/
 git commit -m "feat: complete SQLAlchemy models — derived, assessments, config, sync"
 ```
@@ -1122,7 +1122,7 @@ class SyncLogger:
 **Step 4: Run test, commit**
 
 ```bash
-pytest tests/ingestion/ -v
+uv run pytest tests/ingestion/ -v
 git add backend/garminview/ingestion/ backend/tests/ingestion/
 git commit -m "feat: base adapter interface + sync logger"
 ```
@@ -1184,7 +1184,7 @@ def call_with_backoff(fn, *args, **kwargs):
 **Step 3: Run test, commit**
 
 ```bash
-pytest tests/ingestion/test_rate_limiter.py -v
+uv run pytest tests/ingestion/test_rate_limiter.py -v
 git add backend/garminview/ingestion/rate_limiter.py backend/tests/ingestion/test_rate_limiter.py
 git commit -m "feat: rate limiter with exponential backoff for Garmin API"
 ```
@@ -1304,7 +1304,7 @@ class DailySummaryAdapter(BaseAdapter):
 **Step 4: Run test, commit**
 
 ```bash
-pytest tests/ingestion/test_daily_summary_adapter.py -v
+uv run pytest tests/ingestion/test_daily_summary_adapter.py -v
 git add backend/garminview/ingestion/file_adapters/ backend/tests/ingestion/
 git commit -m "feat: DailySummaryAdapter — parse Garmin daily summary JSON"
 ```
@@ -1401,7 +1401,7 @@ class MonitoringFitAdapter(BaseAdapter):
 **Step 3: Run test, commit**
 
 ```bash
-pytest tests/ingestion/test_monitoring_fit.py -v
+uv run pytest tests/ingestion/test_monitoring_fit.py -v
 git add backend/garminview/ingestion/file_adapters/monitoring_fit.py
 git commit -m "feat: MonitoringFitAdapter — parse monitoring FIT files"
 ```
@@ -1636,7 +1636,7 @@ class IngestionOrchestrator:
 **Step 3: Run test, commit**
 
 ```bash
-pytest tests/ingestion/test_orchestrator.py -v
+uv run pytest tests/ingestion/test_orchestrator.py -v
 git add backend/garminview/ingestion/orchestrator.py
 git commit -m "feat: ingestion orchestrator — coordinates all file + API adapters"
 ```
@@ -1732,7 +1732,7 @@ def calc_strain(weekly_load: float, monotony: float) -> float:
 **Step 3: Run tests, commit**
 
 ```bash
-pytest tests/analysis/test_training_load.py -v
+uv run pytest tests/analysis/test_training_load.py -v
 git add backend/garminview/analysis/metrics/training_load.py
 git commit -m "feat: training load metric formulas — TRIMP, EWMA, ACWR, monotony"
 ```
@@ -1821,7 +1821,7 @@ def calc_sleep_regularity_index(sleep_states: Sequence[Sequence[int]]) -> float 
 **Step 3: Run tests, commit**
 
 ```bash
-pytest tests/analysis/test_sleep_science.py -v
+uv run pytest tests/analysis/test_sleep_science.py -v
 git commit -m "feat: sleep science metrics — efficiency, debt, SJL, SRI"
 ```
 
@@ -1924,7 +1924,7 @@ def classify_trend(dates: Sequence[date], values: Sequence[float],
 **Step 3: Run tests, commit**
 
 ```bash
-pytest tests/analysis/test_trend_classifier.py -v
+uv run pytest tests/analysis/test_trend_classifier.py -v
 git commit -m "feat: trend classifier — OLS regression → improving/stable/declining"
 ```
 
@@ -2045,7 +2045,7 @@ class AnalysisEngine:
 **Step 3: Run tests, commit**
 
 ```bash
-pytest tests/analysis/test_engine.py -v
+uv run pytest tests/analysis/test_engine.py -v
 git commit -m "feat: analysis engine orchestrator — daily derived metrics pipeline"
 ```
 
@@ -2147,7 +2147,7 @@ def daily_summary(date_str: str):
 **Step 5: Run tests, commit**
 
 ```bash
-pytest tests/api/test_health_check.py -v
+uv run pytest tests/api/test_health_check.py -v
 git commit -m "feat: FastAPI app skeleton — health check, CORS, router structure"
 ```
 
@@ -2808,18 +2808,22 @@ Commit validation suite.
 ## Running the Full Stack
 
 ```bash
-# Backend
+# Backend — use uv for all Python tooling
 cd backend
-pip install -e ".[dev]"
+uv venv && source .venv/bin/activate
+uv pip install -e ".[dev]"
 alembic upgrade head
-uvicorn garminview.api.main:create_app --factory --reload --port 8000
+uv run uvicorn garminview.api.main:create_app --factory --reload --port 8000
+
+# Tests
+uv run pytest
 
 # Frontend
 cd frontend
 npm run dev   # port 5173
 
 # Run ingestion (first time)
-python -c "
+uv run python -c "
 from garminview.core.config import get_config
 from garminview.core.database import create_db_engine, get_session_factory
 from garminview.ingestion.orchestrator import IngestionOrchestrator
@@ -2833,6 +2837,9 @@ with factory() as session:
     orch.run_full(date(2020, 1, 1), date.today())
 "
 
-# Marimo notebook
-cd backend && marimo run notebooks/health_explorer.py
+# Marimo notebooks — uv-managed
+uv run marimo run notebooks/health_explorer.py
+uv run marimo run notebooks/training_load.py
+uv run marimo run notebooks/activity_explorer.py
+uv run marimo run notebooks/correlation_explorer.py
 ```
