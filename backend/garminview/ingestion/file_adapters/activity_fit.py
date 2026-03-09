@@ -19,7 +19,8 @@ class ActivityFitAdapter(BaseAdapter):
         return "activity_records"  # primary; laps/zones written by orchestrator
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
-        for path in sorted(self._data_dir.glob("*.fit")):
+        # GarminDB names activity FIT files *_ACTIVITY.fit
+        for path in sorted(self._data_dir.glob("*_ACTIVITY.fit")):
             yield from self._parse_fit(path)
 
     def _parse_fit(self, path: Path) -> Iterator[dict]:

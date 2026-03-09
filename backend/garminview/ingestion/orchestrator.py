@@ -46,13 +46,13 @@ class IngestionOrchestrator:
 
     def _run_file_adapters(self, start_date: date, end_date: date) -> None:
         adapters = [
-            DailySummaryAdapter(self._data_dir / "monitoring"),
-            SleepAdapter(self._data_dir / "sleep"),
-            WeightAdapter(self._data_dir / "weight"),
-            RHRAdapter(self._data_dir / "rhr"),
-            MonitoringFitAdapter(self._data_dir / "monitoring"),
-            ActivityJsonAdapter(self._data_dir / "activities"),
-            ActivityFitAdapter(self._data_dir / "activities"),
+            DailySummaryAdapter(self._data_dir / "FitFiles" / "Monitoring"),
+            SleepAdapter(self._data_dir / "Sleep"),
+            WeightAdapter(self._data_dir / "Weight"),
+            RHRAdapter(self._data_dir / "RHR"),
+            MonitoringFitAdapter(self._data_dir / "FitFiles" / "Monitoring"),
+            ActivityJsonAdapter(self._data_dir / "FitFiles" / "Activities"),
+            ActivityFitAdapter(self._data_dir / "FitFiles" / "Activities"),
         ]
         for adapter in adapters:
             sync_log = SyncLogger(self._session, adapter.source_name(),
@@ -90,8 +90,19 @@ class IngestionOrchestrator:
             "weight": m.Weight,
             "resting_heart_rate": m.RestingHeartRate,
             "monitoring_heart_rate": m.MonitoringHeartRate,
+            "monitoring_intensity": m.MonitoringIntensity,
+            "monitoring_steps": m.MonitoringSteps,
+            "monitoring_respiration": m.MonitoringRespiration,
+            "monitoring_pulse_ox": m.MonitoringPulseOx,
+            "monitoring_climb": m.MonitoringClimb,
             "activities": m.Activity,
+            "activity_laps": m.ActivityLap,
+            "activity_records": m.ActivityRecord,
+            "steps_activities": m.StepsActivity,
+            "activity_hr_zones": m.ActivityHRZone,
         }
+        if table_name not in TABLE_MAP:
+            raise KeyError(f"No model mapped for table '{table_name}'. Add it to TABLE_MAP.")
         return TABLE_MAP[table_name]
 
     def _get_pk_columns(self, model) -> list:

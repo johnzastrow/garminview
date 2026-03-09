@@ -17,7 +17,8 @@ class DailySummaryAdapter(BaseAdapter):
         return "daily_summary"
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
-        for path in sorted(self._data_dir.glob("*.json")):
+        # Files live in year subdirs: FitFiles/Monitoring/2024/daily_summary_*.json
+        for path in sorted(self._data_dir.rglob("daily_summary_*.json")):
             yield from self._parse_file(path)
 
     def _parse_file(self, path: Path) -> Iterator[dict]:

@@ -17,7 +17,7 @@ class ActivityJsonAdapter(BaseAdapter):
         return "activities"
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
-        for path in sorted(self._data_dir.glob("*.json")):
+        for path in sorted(self._data_dir.glob("activity_details_*.json")):
             yield from self._parse_file(path)
 
     def _parse_file(self, path: Path) -> Iterator[dict]:

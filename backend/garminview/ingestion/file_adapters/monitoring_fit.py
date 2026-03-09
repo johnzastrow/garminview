@@ -19,7 +19,8 @@ class MonitoringFitAdapter(BaseAdapter):
         return "monitoring_heart_rate"  # primary; others written by orchestrator
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
-        for path in sorted(self._data_dir.glob("*.fit")):
+        # Files live in year subdirs: FitFiles/Monitoring/2024/*_WELLNESS.fit
+        for path in sorted(self._data_dir.rglob("*.fit")):
             yield from self._parse_fit(path)
 
     def _parse_fit(self, path: Path) -> Iterator[dict]:
