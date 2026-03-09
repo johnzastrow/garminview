@@ -67,14 +67,19 @@ class IngestionOrchestrator:
 
     def _upsert_adapter(self, adapter, start_date: date, end_date: date) -> int:
         from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+        from sqlalchemy import inspect as sa_inspect
         count = 0
         table = adapter.target_table()
         model = self._get_model_for_table(table)
+        valid_cols = {c.key for c in sa_inspect(model).mapper.column_attrs}
         for record in adapter.fetch(start_date, end_date):
-            stmt = sqlite_insert(model).values(**record)
+            row = {k: v for k, v in record.items() if k in valid_cols}
+            if not row:
+                continue
+            stmt = sqlite_insert(model).values(**row)
             stmt = stmt.on_conflict_do_update(
                 index_elements=self._get_pk_columns(model),
-                set_=record,
+                set_=row,
             )
             self._session.execute(stmt)
             count += 1
