@@ -22,10 +22,17 @@ class RHRAdapter(BaseAdapter):
 
     def _parse_file(self, path: Path) -> Iterator[dict]:
         raw = json.loads(path.read_text())
-        d = raw.get("calendarDate")
-        if not d:
-            return
-        yield {
-            "date": date.fromisoformat(d),
-            "resting_hr": raw.get("restingHeartRate"),
-        }
+        # RHR is nested: allMetrics.metricsMap.WELLNESS_RESTING_HEART_RATE[0]
+        entries = (
+            raw.get("allMetrics", {})
+               .get("metricsMap", {})
+               .get("WELLNESS_RESTING_HEART_RATE", [])
+        )
+        for entry in entries:
+            d = entry.get("calendarDate")
+            if not d:
+                continue
+            yield {
+                "date": date.fromisoformat(d),
+                "resting_hr": entry.get("value"),
+            }

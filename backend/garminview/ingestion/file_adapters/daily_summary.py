@@ -34,15 +34,14 @@ class DailySummaryAdapter(BaseAdapter):
             "calories_total": raw.get("totalKilocalories"),
             "calories_bmr": raw.get("bmrKilocalories"),
             "calories_active": raw.get("activeKilocalories"),
-            "hr_avg": raw.get("averageHeartRate"),
             "hr_min": raw.get("minHeartRate"),
             "hr_max": raw.get("maxHeartRate"),
-            "hr_resting": raw.get("restingHeartRateValue"),
+            "hr_resting": raw.get("restingHeartRate"),          # not restingHeartRateValue
             "stress_avg": raw.get("averageStressLevel"),
-            "body_battery_max": raw.get("maxBodyBattery"),
-            "body_battery_min": raw.get("minBodyBattery"),
+            "body_battery_max": raw.get("bodyBatteryHighestValue"),   # not maxBodyBattery
+            "body_battery_min": raw.get("bodyBatteryLowestValue"),    # not minBodyBattery
             "spo2_avg": raw.get("averageSpo2"),
-            "respiration_avg": raw.get("averageRespirationValue"),
+            "respiration_avg": raw.get("avgWakingRespirationValue"),  # not averageRespirationValue
             "hydration_intake_ml": raw.get("totalLiquidConsumptionMl"),
             "hydration_goal_ml": raw.get("dailyHydrationGoal"),
             "intensity_min_moderate": raw.get("moderateIntensityMinutes"),

@@ -22,29 +22,31 @@ class SleepAdapter(BaseAdapter):
 
     def _parse_file(self, path: Path) -> Iterator[dict]:
         raw = json.loads(path.read_text())
-        d = raw.get("calendarDate")
+        # All sleep fields are nested under dailySleepDTO
+        dto = raw.get("dailySleepDTO", {})
+        d = dto.get("calendarDate")
         if not d:
             return
         day = date.fromisoformat(d)
 
-        start_ts = raw.get("sleepStartTimestampGMT")
-        end_ts = raw.get("sleepEndTimestampGMT")
-        scores = raw.get("sleepScores", {})
+        start_ts = dto.get("sleepStartTimestampGMT")
+        end_ts = dto.get("sleepEndTimestampGMT")
+        scores = dto.get("sleepScores", {})
         overall = scores.get("overall", {}) if isinstance(scores, dict) else {}
 
         yield {
             "date": day,
             "start": datetime.fromtimestamp(start_ts / 1000, tz=timezone.utc) if start_ts else None,
             "end": datetime.fromtimestamp(end_ts / 1000, tz=timezone.utc) if end_ts else None,
-            "total_sleep_min": (raw.get("deepSleepSeconds", 0) + raw.get("lightSleepSeconds", 0)
-                                + raw.get("remSleepSeconds", 0)) // 60,
-            "deep_sleep_min": (raw.get("deepSleepSeconds") or 0) // 60,
-            "light_sleep_min": (raw.get("lightSleepSeconds") or 0) // 60,
-            "rem_sleep_min": (raw.get("remSleepSeconds") or 0) // 60,
-            "awake_min": (raw.get("awakeSleepSeconds") or 0) // 60,
+            "total_sleep_min": (dto.get("deepSleepSeconds", 0) + dto.get("lightSleepSeconds", 0)
+                                + dto.get("remSleepSeconds", 0)) // 60,
+            "deep_sleep_min": (dto.get("deepSleepSeconds") or 0) // 60,
+            "light_sleep_min": (dto.get("lightSleepSeconds") or 0) // 60,
+            "rem_sleep_min": (dto.get("remSleepSeconds") or 0) // 60,
+            "awake_min": (dto.get("awakeSleepSeconds") or 0) // 60,
             "score": overall.get("value") if isinstance(overall, dict) else None,
-            "qualifier": raw.get("sleepResultType"),
-            "avg_spo2": raw.get("averageSpO2Value"),
-            "avg_respiration": raw.get("averageRespirationValue"),
-            "avg_stress": raw.get("averageStressLevel"),
+            "qualifier": dto.get("sleepResultType"),
+            "avg_spo2": dto.get("averageSpO2Value"),
+            "avg_respiration": dto.get("averageRespirationValue"),
+            "avg_stress": dto.get("averageStressLevel"),
         }

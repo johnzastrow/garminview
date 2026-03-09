@@ -22,13 +22,15 @@ class WeightAdapter(BaseAdapter):
 
     def _parse_file(self, path: Path) -> Iterator[dict]:
         raw = json.loads(path.read_text())
-        d = raw.get("date") or raw.get("calendarDate")
-        if not d:
-            return
-        weight = raw.get("weight")
-        if weight and weight > 1000:  # grams → kg
-            weight = weight / 1000
-        yield {
-            "date": date.fromisoformat(d),
-            "weight_kg": weight,
-        }
+        # Weight data is a list under dateWeightList; skip files with no entries
+        for entry in raw.get("dateWeightList", []):
+            d = entry.get("calendarDate")
+            if not d:
+                continue
+            weight = entry.get("weight")
+            if weight and weight > 1000:  # grams → kg
+                weight = weight / 1000
+            yield {
+                "date": date.fromisoformat(d),
+                "weight_kg": weight,
+            }

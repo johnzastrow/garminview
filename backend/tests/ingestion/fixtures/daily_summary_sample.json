@@ -6,18 +6,16 @@
   "totalKilocalories": 2341,
   "bmrKilocalories": 1800,
   "activeKilocalories": 541,
-  "averageHeartRate": 68,
   "minHeartRate": 48,
   "maxHeartRate": 142,
-  "restingHeartRateValue": 52,
+  "restingHeartRate": 52,
   "averageStressLevel": 28,
-  "maxBodyBattery": 87,
-  "minBodyBattery": 34,
+  "bodyBatteryHighestValue": 87,
+  "bodyBatteryLowestValue": 34,
   "averageSpo2": 96.5,
-  "averageRespirationValue": 14.2,
+  "avgWakingRespirationValue": 14.2,
   "totalLiquidConsumptionMl": 2100,
   "dailyHydrationGoal": 2500,
   "moderateIntensityMinutes": 45,
-  "vigorousIntensityMinutes": 20,
-  "sleepingSeconds": 28800
+  "vigorousIntensityMinutes": 20
 }
