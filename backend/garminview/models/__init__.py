@@ -25,7 +25,7 @@ from garminview.models.config import (
 from garminview.models.sync import (
     SyncLog, DataProvenance, SchemaVersion
 )
-from garminview.models.nutrition import MFPDailyNutrition, MFPFoodDiaryEntry, MFPMeasurement
+from garminview.models.nutrition import MFPDailyNutrition, MFPFoodDiaryEntry, MFPMeasurement, MFPExercise
 
 __all__ = [
     "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate",
@@ -39,5 +39,5 @@ __all__ = [
     "Goal", "Assessment", "TrendClassification", "CorrelationResult", "DataQualityFlag",
     "UserProfile", "AppConfig", "SyncSchedule", "GoalBenchmark", "NotificationConfig",
     "SyncLog", "DataProvenance", "SchemaVersion",
-    "MFPDailyNutrition", "MFPFoodDiaryEntry", "MFPMeasurement",
+    "MFPDailyNutrition", "MFPFoodDiaryEntry", "MFPMeasurement", "MFPExercise",
 ]
