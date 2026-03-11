@@ -25,6 +25,7 @@ class AnalysisEngine:
         log.info("analysis_engine_start")
         self._compute_daily_derived()
         self._compute_weekly_derived()
+        self._compute_max_hr_aging()
         self._run_trend_classifications()
         log.info("analysis_engine_complete")
 
@@ -83,6 +84,10 @@ class AnalysisEngine:
 
     def _compute_weekly_derived(self) -> None:
         pass  # Phase 3 continuation
+
+    def _compute_max_hr_aging(self) -> None:
+        from garminview.analysis.max_hr_aging import MaxHRAgingAnalysis
+        MaxHRAgingAnalysis(self._session).run()
 
     def _run_trend_classifications(self) -> None:
         pass  # Phase 3 continuation

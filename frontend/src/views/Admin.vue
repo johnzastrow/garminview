@@ -49,18 +49,20 @@
       </div>
 
       <!-- Logs tab -->
-      <div v-if="activeTab === 'logs'">
-        <h2>Sync Logs</h2>
-        <div v-if="logsLoading">Loading...</div>
-        <table v-else>
-          <thead><tr><th>Source</th><th>Status</th><th>Records</th><th>Started</th></tr></thead>
-          <tbody>
-            <tr v-for="l in logs" :key="l.id">
-              <td>{{ l.source }}</td><td>{{ l.status }}</td>
-              <td>{{ l.records_upserted }}</td><td>{{ l.started_at }}</td>
-            </tr>
-          </tbody>
-        </table>
+      <div v-if="activeTab === 'logs'" class="sync-panel">
+        <div class="sync-controls">
+          <h2 style="margin: 0;">Sync Log History</h2>
+          <button class="sync-btn" :disabled="logsLoading" @click="loadLogs" style="margin-left: auto;">
+            {{ logsLoading ? "Loading…" : "Refresh" }}
+          </button>
+        </div>
+        <div class="log-box" ref="historyBox">
+          <div v-if="logsLoading" class="log-empty">Loading…</div>
+          <template v-else-if="logFileLines.length">
+            <div v-for="(line, i) in logFileLines" :key="i" :class="['log-line', lineClass(line)]">{{ line }}</div>
+          </template>
+          <div v-else class="log-empty">No log file found yet. Run a sync first.</div>
+        </div>
       </div>
 
     </div>
@@ -68,7 +70,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, nextTick } from "vue"
+import { ref, watch, onMounted, onUnmounted, nextTick } from "vue"
 import { api } from "@/api/client"
 
 const activeTab = ref("sync")
@@ -86,11 +88,15 @@ const logBox = ref<HTMLElement | null>(null)
 let sse: EventSource | null = null
 
 function connectSSE() {
+  if (sse) { sse.close(); sse = null }
   const base = import.meta.env.VITE_API_URL ?? "http://localhost:8000"
   sse = new EventSource(`${base}/sync/stream`)
 
   sse.addEventListener("log", (e) => {
-    logLines.value.push({ type: "log", text: (e as MessageEvent).data })
+    const text = (e as MessageEvent).data
+    // Suppress noisy GarminDB enum warnings that are not actionable errors
+    if (text.includes("UnknownEnumValue")) return
+    logLines.value.push({ type: "log", text })
     scrollLog()
   })
   sse.addEventListener("done", (e) => {
@@ -99,13 +105,22 @@ function connectSSE() {
     scrollLog()
   })
   sse.addEventListener("error", (e) => {
-    logLines.value.push({ type: "error", text: (e as MessageEvent).data ?? "Connection error" })
-    syncRunning.value = false
-    scrollLog()
+    const msg = (e as MessageEvent).data
+    if (msg) {
+      logLines.value.push({ type: "error", text: msg })
+      syncRunning.value = false
+      scrollLog()
+    }
+    // Reconnect after 3s on connection drop (not on error events with data)
+    if (!msg && sse?.readyState === EventSource.CLOSED) {
+      setTimeout(() => connectSSE(), 3000)
+    }
   })
-  sse.addEventListener("status", () => {
-    syncRunning.value = false
+  sse.addEventListener("status", (e) => {
+    const state = (e as MessageEvent).data
+    if (state === "idle") syncRunning.value = false
   })
+  sse.addEventListener("ping", () => { /* keep-alive, ignore */ })
 }
 
 function scrollLog() {
@@ -117,27 +132,55 @@ function scrollLog() {
 async function triggerSync() {
   logLines.value = []
   syncRunning.value = true
-  await api.post("/sync/trigger")
+  try {
+    await api.post("/sync/trigger")
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail ?? String(err)
+    logLines.value.push({ type: "error", text: `Failed to start sync: ${detail}` })
+    syncRunning.value = false
+  }
+}
+
+async function loadLogs() {
+  logsLoading.value = true
+  try {
+    const r = await api.get("/sync/logs", { params: { lines: 500 } })
+    logFileLines.value = r.data.lines ?? []
+  } finally {
+    logsLoading.value = false
+    nextTick(() => {
+      if (historyBox.value) historyBox.value.scrollTop = historyBox.value.scrollHeight
+    })
+  }
+}
+
+function lineClass(line: string): string {
+  if (line.includes("[error]") || line.includes("ERROR") || line.includes("✗")) return "error"
+  if (line.includes("[done]") || line.includes("✓")) return "done"
+  if (line.includes("WARNING") || line.includes("⚠")) return "warn"
+  return ""
 }
 
 onMounted(() => {
   connectSSE()
-
-  // Other tabs data
   api.get("/admin/schedules").then((r) => { schedules.value = r.data.schedules ?? []; schedulesLoading.value = false })
   api.get("/admin/config").then((r) => { config.value = r.data.config ?? []; configLoading.value = false })
-  api.get("/admin/sync-logs").then((r) => { logs.value = r.data.logs ?? []; logsLoading.value = false })
 })
 
 onUnmounted(() => sse?.close())
+
+watch(activeTab, (tab) => { if (tab === 'logs') loadLogs() })
 
 // --- Other tabs ---
 const schedules = ref<any[]>([])
 const schedulesLoading = ref(true)
 const config = ref<any[]>([])
 const configLoading = ref(true)
-const logs = ref<any[]>([])
-const logsLoading = ref(true)
+
+// Log history tab
+const logFileLines = ref<string[]>([])
+const logsLoading = ref(false)
+const historyBox = ref<HTMLElement | null>(null)
 </script>
 
 <style scoped>
@@ -179,8 +222,9 @@ const logsLoading = ref(true)
   gap: 2px;
 }
 .log-empty { color: #6b7280; font-style: italic; }
-.log-line.done { color: #34d399; font-weight: 600; }
+.log-line.done  { color: #34d399; font-weight: 600; }
 .log-line.error { color: #f87171; font-weight: 600; }
+.log-line.warn  { color: #fbbf24; }
 
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; }

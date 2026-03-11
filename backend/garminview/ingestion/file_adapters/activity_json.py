@@ -1,5 +1,5 @@
 import json
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -17,32 +17,44 @@ class ActivityJsonAdapter(BaseAdapter):
         return "activities"
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
+        # Filter by mtime: --latest downloads only recent files with fresh timestamps.
+        mtime_cutoff = start_date - timedelta(days=2)
         for path in sorted(self._data_dir.glob("activity_details_*.json")):
-            yield from self._parse_file(path)
+            if date.fromtimestamp(path.stat().st_mtime) >= mtime_cutoff:
+                yield from self._parse_file(path)
 
     def _parse_file(self, path: Path) -> Iterator[dict]:
         raw = json.loads(path.read_text())
         activity_id = raw.get("activityId")
         if not activity_id:
             return
-        begin_ts = raw.get("beginTimestamp")
+        s = raw.get("summaryDTO") or {}
+        at = raw.get("activityTypeDTO") or {}
+        start_gmt = s.get("startTimeGMT")
+        start_time = None
+        if start_gmt:
+            try:
+                start_time = datetime.fromisoformat(start_gmt.rstrip("Z")).replace(tzinfo=timezone.utc)
+            except ValueError:
+                pass
+        elapsed = s.get("elapsedDuration") or s.get("duration") or 0
         yield {
             "activity_id": activity_id,
             "name": raw.get("activityName"),
-            "type": (raw.get("activityType") or {}).get("typeKey"),
-            "sport": raw.get("sport"),
-            "sub_sport": raw.get("subSport"),
-            "start_time": datetime.fromtimestamp(begin_ts / 1000, tz=timezone.utc) if begin_ts else None,
-            "elapsed_time_s": int(raw.get("duration", 0)),
-            "moving_time_s": int(raw.get("movingDuration", 0)),
-            "distance_m": raw.get("distance"),
-            "calories": raw.get("calories"),
-            "avg_hr": raw.get("averageHR"),
-            "max_hr": raw.get("maxHR"),
-            "avg_cadence": raw.get("averageRunCadence"),
-            "avg_speed": raw.get("averageSpeed"),
-            "ascent_m": raw.get("elevationGain"),
-            "descent_m": raw.get("elevationLoss"),
+            "type": at.get("typeKey"),
+            "sport": at.get("typeKey"),
+            "sub_sport": None,
+            "start_time": start_time,
+            "elapsed_time_s": int(elapsed),
+            "moving_time_s": int(s.get("movingDuration") or 0),
+            "distance_m": s.get("distance"),
+            "calories": s.get("calories"),
+            "avg_hr": s.get("averageHR"),
+            "max_hr": s.get("maxHR"),
+            "avg_cadence": s.get("averageRunCadence"),
+            "avg_speed": s.get("averageSpeed"),
+            "ascent_m": s.get("elevationGain"),
+            "descent_m": s.get("elevationLoss"),
             "training_load": raw.get("trainingLoad"),
             "aerobic_effect": raw.get("aerobicTrainingEffect"),
             "anaerobic_effect": raw.get("anaerobicTrainingEffect"),

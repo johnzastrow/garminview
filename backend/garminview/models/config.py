@@ -11,6 +11,9 @@ class UserProfile(Base):
     birth_date: Mapped[date | None] = mapped_column(Date)
     sex: Mapped[str | None] = mapped_column(String(8))
     height_cm: Mapped[float | None] = mapped_column(Float)
+    weight_kg: Mapped[float | None] = mapped_column(Float)
+    max_hr_override: Mapped[int | None] = mapped_column(Integer)
+    resting_hr: Mapped[int | None] = mapped_column(Integer)
     units: Mapped[str] = mapped_column(String(8), default="metric")
 
 

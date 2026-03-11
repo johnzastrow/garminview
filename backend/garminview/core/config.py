@@ -15,6 +15,7 @@ class Config(BaseSettings):
     db_url: str = ""                         # mariadb: user:pass@host:port/dbname
     health_data_dir: str = "~/HealthData"
     log_level: str = "INFO"
+    log_dir: str = "logs"
     secret_key: str = "change-me-in-production"
     cors_origins: list[str] = ["http://localhost:5173"]
 

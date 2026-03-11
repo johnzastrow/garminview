@@ -1,11 +1,32 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Body
 from datetime import datetime, timezone
 from typing import Annotated
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 
-from garminview.models.config import AppConfig, SyncSchedule
+from garminview.models.config import AppConfig, SyncSchedule, UserProfile
+from garminview.models.assessments import DataQualityFlag
+from garminview.analysis.athlete_metrics import compute_athlete_metrics
 from garminview.models.sync import SyncLog, SchemaVersion
 from garminview.api.deps import get_db
+
+
+def _migrate_anomaly_columns(session: Session) -> None:
+    """Add anomaly exclusion columns to data_quality_flags if not present."""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(session.bind)
+        existing = {c["name"] for c in inspector.get_columns("data_quality_flags")}
+        with session.connection() as conn:
+            if "source_table" not in existing:
+                conn.execute(text("ALTER TABLE data_quality_flags ADD COLUMN source_table VARCHAR(64)"))
+            if "record_id" not in existing:
+                conn.execute(text("ALTER TABLE data_quality_flags ADD COLUMN record_id VARCHAR(128)"))
+            if "excluded" not in existing:
+                conn.execute(text("ALTER TABLE data_quality_flags ADD COLUMN excluded BOOLEAN NOT NULL DEFAULT 0"))
+        session.commit()
+    except Exception:
+        session.rollback()
 
 router = APIRouter()
 
@@ -57,3 +78,385 @@ def sync_logs(session: Annotated[Session, Depends(get_db)], limit: int = 20):
     rows = session.query(SyncLog).order_by(SyncLog.started_at.desc()).limit(limit).all()
     return {"logs": [{"id": r.id, "source": r.source, "status": r.status,
                       "started_at": r.started_at, "records_upserted": r.records_upserted} for r in rows]}
+
+
+@router.get("/profile")
+def get_profile(session: Annotated[Session, Depends(get_db)]):
+    p = session.query(UserProfile).first()
+    if not p:
+        return {}
+    return {
+        "name": p.name,
+        "birth_date": str(p.birth_date) if p.birth_date else None,
+        "sex": p.sex,
+        "height_cm": p.height_cm,
+        "weight_kg": p.weight_kg,
+        "resting_hr": p.resting_hr,
+        "max_hr_override": p.max_hr_override,
+        "units": p.units,
+    }
+
+
+@router.put("/profile")
+def update_profile(
+    session: Annotated[Session, Depends(get_db)],
+    name: str | None = None,
+    birth_date: str | None = None,
+    sex: str | None = None,
+    height_cm: float | None = None,
+    weight_kg: float | None = None,
+    resting_hr: int | None = None,
+    max_hr_override: int | None = None,
+):
+    p = session.query(UserProfile).first()
+    if not p:
+        p = UserProfile(id=1)
+        session.add(p)
+    if name is not None: p.name = name
+    if birth_date is not None:
+        from datetime import date as _date
+        p.birth_date = _date.fromisoformat(birth_date)
+    if sex is not None: p.sex = sex
+    if height_cm is not None: p.height_cm = height_cm
+    if weight_kg is not None: p.weight_kg = weight_kg
+    if resting_hr is not None: p.resting_hr = resting_hr
+    if max_hr_override is not None: p.max_hr_override = max_hr_override if max_hr_override > 0 else None
+    session.commit()
+    return get_profile(session)
+
+
+@router.get("/athlete-metrics")
+def athlete_metrics(session: Annotated[Session, Depends(get_db)]):
+    from datetime import timedelta
+    from sqlalchemy import func
+    from garminview.models.monitoring import MonitoringHeartRate
+    from garminview.models.activities import Activity
+
+    # Time windows for measured data — use recent data to reflect current fitness
+    MAX_HR_WINDOW_DAYS = 365     # 12 months: HRmax declines ~0.7 bpm/yr with age
+    VO2MAX_RUN_WINDOW_DAYS = 180 # 6 months: aerobic fitness changes across training seasons
+    max_hr_cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=MAX_HR_WINDOW_DAYS)
+    run_cutoff    = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=VO2MAX_RUN_WINDOW_DAYS)
+
+    p = session.query(UserProfile).first()
+    if not p:
+        return {"error": "No profile data. Set birth_date to enable metrics."}
+
+    # Fetch excluded record IDs for each table
+    excluded_mhr = session.query(DataQualityFlag.record_id).filter(
+        DataQualityFlag.flag_type == "user_exclusion",
+        DataQualityFlag.source_table == "monitoring_heart_rate",
+    ).all()
+    excluded_mhr_ids = [r[0] for r in excluded_mhr]
+
+    excluded_act = session.query(DataQualityFlag.record_id).filter(
+        DataQualityFlag.flag_type == "user_exclusion",
+        DataQualityFlag.source_table == "activities",
+    ).all()
+    excluded_act_ids = [r[0] for r in excluded_act]
+
+    # Measured max HR — last 12 months, plausible range, excluding flagged records
+    mhr_q = session.query(func.max(MonitoringHeartRate.hr)).filter(
+        MonitoringHeartRate.hr < 220,
+        MonitoringHeartRate.timestamp >= max_hr_cutoff,
+    )
+    if excluded_mhr_ids:
+        from sqlalchemy import cast, String
+        mhr_q = mhr_q.filter(
+            ~func.cast(MonitoringHeartRate.timestamp, String).in_(excluded_mhr_ids)
+        )
+    measured_mon = mhr_q.scalar()
+
+    act_q = session.query(func.max(Activity.max_hr)).filter(
+        Activity.max_hr < 220,
+        Activity.start_time >= max_hr_cutoff,
+    )
+    if excluded_act_ids:
+        act_q = act_q.filter(~Activity.activity_id.in_([int(i) for i in excluded_act_ids if i and i.isdigit()]))
+    measured_act = act_q.scalar()
+
+    # Running-based VO2max — best steady-state run in last 6 months (20+ min, submaximal HR)
+    running_vo2max = None
+    best_run_date = None
+    if p.resting_hr and p.birth_date:
+        from garminview.analysis.athlete_metrics import calc_age, calc_max_hr_methods
+        age = calc_age(p.birth_date)
+        max_hr_for_calc, _, _ = calc_max_hr_methods(age, p.sex or "male", p.max_hr_override)
+
+        hr_lo = round(max_hr_for_calc * 0.60)
+        hr_hi = round(max_hr_for_calc * 0.90)
+        best_run = (
+            session.query(Activity)
+            .filter(Activity.sport.in_(["running", "trail_running", "treadmill_running"]))
+            .filter(Activity.avg_hr.between(hr_lo, hr_hi))
+            .filter(Activity.avg_speed.isnot(None))
+            .filter(Activity.elapsed_time_s >= 1200)
+            .filter(Activity.start_time >= run_cutoff)
+            .order_by(Activity.avg_speed.desc())
+            .first()
+        )
+        if best_run and best_run.avg_speed:
+            speed_m_min = best_run.avg_speed * 60
+            vo2_at_speed = 0.2 * speed_m_min + 3.5
+            hrr_fraction = (best_run.avg_hr - p.resting_hr) / (max_hr_for_calc - p.resting_hr)
+            if 0.2 < hrr_fraction < 1.0:
+                running_vo2max = vo2_at_speed / hrr_fraction
+                best_run_date = best_run.start_time.date().isoformat() if best_run.start_time else None
+
+    # Garmin device VO2max — read from GarminDB SQLite (steps_activities.vo2_max)
+    garmin_vo2max = None
+    garmin_vo2max_date = None
+    try:
+        from garminview.core.config import get_config as _get_config
+        import sqlite3 as _sqlite3, os as _os
+        _cfg = _get_config()
+        _gdb = _os.path.join(_os.path.expanduser(_cfg.health_data_dir), "DBs", "garmin_activities.db")
+        if _os.path.exists(_gdb):
+            _conn = _sqlite3.connect(_gdb)
+            _cutoff_str = max_hr_cutoff.strftime("%Y-%m-%d %H:%M:%S")
+            row = _conn.execute("""
+                SELECT s.vo2_max, a.start_time
+                FROM steps_activities s
+                JOIN activities a ON a.activity_id = s.activity_id
+                WHERE s.vo2_max IS NOT NULL AND a.start_time >= ?
+                ORDER BY a.start_time DESC LIMIT 1
+            """, (_cutoff_str,)).fetchone()
+            _conn.close()
+            if row:
+                garmin_vo2max = float(row[0])
+                garmin_vo2max_date = str(row[1])[:10]
+    except Exception:
+        pass
+
+    m = compute_athlete_metrics(
+        p,
+        measured_max_hr_monitoring=measured_mon,
+        measured_max_hr_activities=measured_act,
+        running_vo2max=running_vo2max,
+        garmin_vo2max=garmin_vo2max,
+    )
+    if not m:
+        return {"error": "No profile data. Set birth_date to enable metrics."}
+
+    def method_to_dict(mv):
+        return {"method": mv.method, "label": mv.label, "value": mv.value,
+                "recommended": mv.recommended, "note": mv.note}
+
+    return {
+        "age": m.age,
+        "sex": m.sex,
+        "resting_hr": m.resting_hr,
+        "weight_kg": m.weight_kg,
+        "height_cm": m.height_cm,
+        "bmr": m.bmr,
+        "max_hr": m.max_hr,
+        "max_hr_source": m.max_hr_source,
+        "max_hr_methods": [method_to_dict(mv) for mv in m.max_hr_methods],
+        "vo2max_estimate": m.vo2max_estimate,
+        "vo2max_methods": [method_to_dict(mv) for mv in m.vo2max_methods],
+        "fitness_age": m.fitness_age,
+        "fitness_age_methods": [method_to_dict(mv) for mv in m.fitness_age_methods],
+        "hr_zones_method": m.hr_zones_method,
+        "hr_zones": [{"zone": z.zone, "name": z.name, "min_bpm": z.min_bpm,
+                      "max_bpm": z.max_bpm, "description": z.description}
+                     for z in m.hr_zones],
+        "data_windows": {
+            "max_hr_days": MAX_HR_WINDOW_DAYS,
+            "vo2max_run_days": VO2MAX_RUN_WINDOW_DAYS,
+            "best_run_date": best_run_date,
+            "measured_mon_hr": measured_mon,
+            "measured_act_hr": measured_act,
+            "garmin_vo2max": garmin_vo2max,
+            "garmin_vo2max_date": garmin_vo2max_date,
+        },
+    }
+
+
+@router.get("/anomalies")
+def list_anomalies(session: Annotated[Session, Depends(get_db)]):
+    """Scan data for sensor spikes and physiological anomalies."""
+    _migrate_anomaly_columns(session)
+
+    from garminview.models.monitoring import MonitoringHeartRate
+    from garminview.models.activities import Activity
+    from garminview.models.health import DailySummary
+
+    # Build exclusion lookup: (source_table, record_id) → flag_id
+    exclusions = session.query(DataQualityFlag).filter(
+        DataQualityFlag.flag_type == "user_exclusion"
+    ).all()
+    excluded_set = {(f.source_table, f.record_id): f.id for f in exclusions}
+
+    anomalies = []
+
+    # 1. Monitoring HR spikes (> 210 bpm — above any recorded human max)
+    spikes = (
+        session.query(MonitoringHeartRate)
+        .filter(MonitoringHeartRate.hr > 210)
+        .order_by(MonitoringHeartRate.timestamp.desc())
+        .limit(200)
+        .all()
+    )
+    for row in spikes:
+        rid = row.timestamp.isoformat()
+        key = ("monitoring_heart_rate", rid)
+        anomalies.append({
+            "anomaly_id": f"mhr_{rid}",
+            "source_table": "monitoring_heart_rate",
+            "record_id": rid,
+            "date": row.timestamp.date().isoformat(),
+            "metric": "heart_rate",
+            "value": row.hr,
+            "anomaly_type": "sensor_spike",
+            "severity": "high",
+            "message": f"HR {row.hr} bpm exceeds physiological maximum (210 bpm threshold)",
+            "excluded": key in excluded_set,
+            "flag_id": excluded_set.get(key),
+        })
+
+    # 2. Activity max_hr > 220 (impossible — clear sensor artifact)
+    bad_acts = (
+        session.query(Activity)
+        .filter(Activity.max_hr > 220, Activity.max_hr.isnot(None))
+        .order_by(Activity.start_time.desc())
+        .limit(100)
+        .all()
+    )
+    for row in bad_acts:
+        rid = str(row.activity_id)
+        key = ("activities", rid)
+        date_str = row.start_time.date().isoformat() if row.start_time else "unknown"
+        anomalies.append({
+            "anomaly_id": f"act_{rid}",
+            "source_table": "activities",
+            "record_id": rid,
+            "date": date_str,
+            "metric": "activity_max_hr",
+            "value": row.max_hr,
+            "anomaly_type": "sensor_spike",
+            "severity": "high",
+            "message": f"Activity max HR {row.max_hr} bpm exceeds 220 bpm (activity: {row.name or rid})",
+            "excluded": key in excluded_set,
+            "flag_id": excluded_set.get(key),
+        })
+
+    # 3. Activity max_hr implausibly high (> Tanaka estimate + 25 bpm) if profile available
+    p = session.query(UserProfile).first()
+    if p and p.birth_date:
+        from garminview.analysis.athlete_metrics import calc_age
+        age = calc_age(p.birth_date)
+        tanaka = round(208 - 0.7 * age)
+        threshold = tanaka + 25
+        suspicious_acts = (
+            session.query(Activity)
+            .filter(Activity.max_hr > threshold, Activity.max_hr <= 220, Activity.max_hr.isnot(None))
+            .order_by(Activity.start_time.desc())
+            .limit(100)
+            .all()
+        )
+        for row in suspicious_acts:
+            rid = str(row.activity_id)
+            key = ("activities", rid)
+            if key not in {("activities", str(a.activity_id)) for a in bad_acts}:
+                date_str = row.start_time.date().isoformat() if row.start_time else "unknown"
+                anomalies.append({
+                    "anomaly_id": f"act_{rid}",
+                    "source_table": "activities",
+                    "record_id": rid,
+                    "date": date_str,
+                    "metric": "activity_max_hr",
+                    "value": row.max_hr,
+                    "anomaly_type": "implausible",
+                    "severity": "medium",
+                    "message": f"Activity max HR {row.max_hr} bpm is {row.max_hr - tanaka} bpm above Tanaka estimate ({tanaka} bpm) for age {age}",
+                    "excluded": key in excluded_set,
+                    "flag_id": excluded_set.get(key),
+                })
+
+    # 4. Daily steps > 80,000 (extreme outlier — likely device glitch)
+    high_steps = (
+        session.query(DailySummary)
+        .filter(DailySummary.steps > 80000)
+        .order_by(DailySummary.date.desc())
+        .limit(50)
+        .all()
+    )
+    for row in high_steps:
+        rid = str(row.date)
+        key = ("daily_summary", rid)
+        anomalies.append({
+            "anomaly_id": f"steps_{rid}",
+            "source_table": "daily_summary",
+            "record_id": rid,
+            "date": rid,
+            "metric": "steps",
+            "value": row.steps,
+            "anomaly_type": "implausible",
+            "severity": "medium",
+            "message": f"{row.steps:,} steps on {rid} exceeds physiologically plausible daily maximum (80,000)",
+            "excluded": key in excluded_set,
+            "flag_id": excluded_set.get(key),
+        })
+
+    # Sort by date descending
+    anomalies.sort(key=lambda a: a["date"], reverse=True)
+    return {"anomalies": anomalies, "total": len(anomalies)}
+
+
+@router.post("/anomalies/exclude")
+def exclude_anomaly(
+    session: Annotated[Session, Depends(get_db)],
+    source_table: str,
+    record_id: str,
+    date: str,
+    metric: str,
+    value: str,
+    message: str = "",
+):
+    """Mark an anomaly as user-excluded."""
+    _migrate_anomaly_columns(session)
+    from datetime import date as _date
+
+    # Idempotent: don't create duplicate exclusions
+    existing = session.query(DataQualityFlag).filter(
+        DataQualityFlag.flag_type == "user_exclusion",
+        DataQualityFlag.source_table == source_table,
+        DataQualityFlag.record_id == record_id,
+    ).first()
+    if existing:
+        return {"id": existing.id, "excluded": True}
+
+    flag = DataQualityFlag(
+        date=_date.fromisoformat(date),
+        metric=metric,
+        flag_type="user_exclusion",
+        value=str(value),
+        message=message,
+        source_table=source_table,
+        record_id=record_id,
+        excluded=True,
+    )
+    session.add(flag)
+    session.commit()
+    session.refresh(flag)
+    return {"id": flag.id, "excluded": True}
+
+
+@router.delete("/anomalies/exclude")
+def include_anomaly(
+    session: Annotated[Session, Depends(get_db)],
+    source_table: str,
+    record_id: str,
+):
+    """Remove a user exclusion for an anomaly."""
+    _migrate_anomaly_columns(session)
+
+    flag = session.query(DataQualityFlag).filter(
+        DataQualityFlag.flag_type == "user_exclusion",
+        DataQualityFlag.source_table == source_table,
+        DataQualityFlag.record_id == record_id,
+    ).first()
+    if flag:
+        session.delete(flag)
+        session.commit()
+    return {"excluded": False}

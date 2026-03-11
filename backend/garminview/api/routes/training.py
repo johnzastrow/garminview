@@ -3,9 +3,9 @@ from datetime import date
 from typing import Annotated
 from sqlalchemy.orm import Session
 
-from garminview.models.derived import DailyDerived
+from garminview.models.derived import DailyDerived, MaxHRAgingYear
 from garminview.models.supplemental import TrainingReadiness
-from garminview.api.schemas.training import TrainingLoadResponse, TrainingReadinessResponse
+from garminview.api.schemas.training import TrainingLoadResponse, TrainingReadinessResponse, MaxHRAgingYearResponse
 from garminview.api.deps import get_db
 
 router = APIRouter()
@@ -37,3 +37,8 @@ def training_readiness(
     if end:
         q = q.filter(TrainingReadiness.date <= end)
     return q.order_by(TrainingReadiness.date).all()
+
+
+@router.get("/max-hr-aging", response_model=list[MaxHRAgingYearResponse])
+def max_hr_aging(session: Annotated[Session, Depends(get_db)]):
+    return session.query(MaxHRAgingYear).order_by(MaxHRAgingYear.year).all()

@@ -32,7 +32,8 @@ class RHRAdapter(BaseAdapter):
             d = entry.get("calendarDate")
             if not d:
                 continue
+            value = entry.get("value")
             yield {
                 "date": date.fromisoformat(d),
-                "resting_hr": entry.get("value"),
+                "resting_hr": None if value == -1 else value,
             }
