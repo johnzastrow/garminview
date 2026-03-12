@@ -79,12 +79,16 @@ Earlier dates = more history but longer first download.
 ### 2c. Initial download (first time only)
 
 ```bash
-garmindb_cli.py --all --download --import --analyze
+garmindb_cli.py --all --download --import
 ```
 
 This downloads all your history from Garmin Connect and imports it into
 `~/HealthData/`. Expect 10–60 minutes depending on how much history you have
 and your connection speed.
+
+> **Note:** Omit `--analyze` — GarminView runs its own analysis engine and does not
+> use GarminDB's analysis step. Including `--analyze` adds significant time with no
+> benefit for this setup.
 
 When it finishes, `~/HealthData/` will contain:
 
@@ -104,7 +108,7 @@ When it finishes, `~/HealthData/` will contain:
 ### 2d. Incremental updates (daily / weekly)
 
 ```bash
-garmindb_cli.py --all --download --import --analyze --latest
+garmindb_cli.py --all --download --import --latest
 ```
 
 ---
@@ -184,6 +188,24 @@ EOF
 
 ---
 
+## Step 6 — Trigger sync via the Admin UI
+
+Once the backend is running, open `http://localhost:5173/admin` and use the **Sync** tab to run an ingestion from the browser. The log stream shows live progress via SSE.
+
+For the initial full-history ingest, run the Python snippet in Step 5 directly — it supports an arbitrary start date. The Admin UI sync runs an incremental sync (from the most recent date in the database).
+
+### Import MyFitnessPal data
+
+If you have a MyFitnessPal account, export your data via **MFP Settings → Export Data** (you will receive a ZIP by email). Then:
+
+1. Open `http://localhost:5173/admin` → **Uploads** tab
+2. Select the ZIP file and click **Import MFP Data**
+3. The upload parses the ZIP in memory and inserts nutrition, measurements, and exercise log entries
+
+The upload endpoint accepts any version of the MFP export ZIP (filename is ignored; contents are matched by prefix).
+
+---
+
 ## Step 6 — Start the backend
 
 ```bash
@@ -235,30 +257,28 @@ uv run notebooks/health_explorer.py
 Run this sequence whenever you want fresh data (automate with cron or systemd):
 
 ```bash
-# 1. Download latest from Garmin Connect
-garmindb_cli.py --all --download --import --analyze --latest
+# 1. Download latest from Garmin Connect (omit --analyze — GarminView runs its own)
+garmindb_cli.py --all --download --import --latest
 
-# 2. Ingest into garminview (last 7 days)
+# 2. Trigger incremental ingest via the Admin UI at http://localhost:5173/admin
+#    — or run it directly:
 cd ~/Github/garminview/backend
 uv run python -c "
-from datetime import date, timedelta
 from garminview.core.config import get_config
 from garminview.core.database import create_db_engine, get_session_factory
 from garminview.ingestion.orchestrator import IngestionOrchestrator
 cfg = get_config()
 engine = create_db_engine(cfg)
 with get_session_factory(engine)() as s:
-    IngestionOrchestrator(s, cfg.health_data_dir).run_incremental(
-        date.today() - timedelta(days=7), date.today()
-    )
+    IngestionOrchestrator(s, cfg.health_data_dir).run_incremental()
 "
 ```
 
 ### Example cron (daily at 06:00)
 
 ```cron
-0 6 * * * garmindb_cli.py --all --download --import --analyze --latest >> ~/garmindb.log 2>&1
-5 6 * * * cd ~/Github/garminview/backend && .venv/bin/python -c "..." >> ~/garminview.log 2>&1
+0 6 * * * garmindb_cli.py --all --download --import --latest >> ~/garmindb.log 2>&1
+5 6 * * * curl -s -X POST http://localhost:8000/admin/sync >> ~/garminview.log 2>&1
 ```
 
 ---

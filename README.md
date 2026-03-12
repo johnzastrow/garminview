@@ -33,6 +33,7 @@ Marimo notebooks  ──  ad-hoc exploration
 | Document | Purpose |
 |----------|---------|
 | [docs/SETUP.md](docs/SETUP.md) | Full setup walkthrough — start here |
+| [docs/SCHEMA.md](docs/SCHEMA.md) | Complete database schema reference + data dictionary |
 | [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) | Feature requirements & architecture |
 | [docs/DATA_SOURCE_ANALYSIS.md](docs/DATA_SOURCE_ANALYSIS.md) | Data source mapping |
 | [.env.example](.env.example) | Backend environment variables |

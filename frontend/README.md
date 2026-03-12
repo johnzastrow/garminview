@@ -1,48 +1,71 @@
-# frontend
+# GarminView Frontend
 
-This template should help get you started developing with Vue 3 in Vite.
+Vue.js 3 frontend for the GarminView fitness data platform.
 
-## Recommended IDE Setup
+**Stack:** Vue 3 · Composition API · Pinia · Vue Router · vue-echarts (Apache ECharts) · TypeScript
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+---
 
-## Recommended Browser Setup
+## Development
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+```bash
 npm install
+npm run dev        # → http://localhost:5173
 ```
 
-### Compile and Hot-Reload for Development
+The dev server proxies API requests to `http://localhost:8000` by default. To override:
 
-```sh
-npm run dev
+```bash
+echo "VITE_API_URL=http://localhost:8000" > .env.local
 ```
 
-### Type-Check, Compile and Minify for Production
+The backend must be running — see [../docs/SETUP.md](../docs/SETUP.md).
 
-```sh
-npm run build
+---
+
+## Build
+
+```bash
+npm run build      # output → dist/
+npm run preview    # preview the production build locally
 ```
 
-### Run Unit Tests with [Vitest](https://vitest.dev/)
+---
 
-```sh
-npm run test:unit
+## Tests
+
+```bash
+npm run test:unit  # Vitest unit tests
 ```
+
+---
+
+## Project structure
+
+```
+src/
+├── assets/          — global CSS (base.css, main.css)
+├── components/
+│   ├── charts/      — ECharts wrappers (TimeSeriesChart, StackedBarChart,
+│   │                  ScatterTrendChart, PMCChart, …)
+│   └── ui/          — MetricCard, DateRangePicker, …
+├── router/          — Vue Router config (index.ts)
+├── stores/          — Pinia stores (dateRange, sync, …)
+└── views/           — One component per dashboard route
+    ├── DailyOverview.vue
+    ├── SleepDashboard.vue
+    ├── CardiovascularDashboard.vue
+    ├── WeightBodyComp.vue
+    ├── ActivitySummary.vue
+    ├── RunningDashboard.vue
+    ├── RecoveryStress.vue
+    ├── NutritionDashboard.vue
+    ├── MaxHRAgingDashboard.vue
+    └── Admin.vue            — sync controls, schedule, config, MFP upload
+```
+
+---
+
+## IDE setup
+
+[VS Code](https://code.visualstudio.com/) + [Vue - Official](https://marketplace.visualstudio.com/items?itemName=Vue.volar) extension (disable Vetur if installed). Enable "Custom Object Formatters" in DevTools for better Pinia/Vue debugging.
