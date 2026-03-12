@@ -2,7 +2,7 @@ import io
 import zipfile
 import pytest
 from datetime import date
-from garminview.ingestion.mfp_zip_parser import parse_mfp_zip, ParseResult, ParseError
+from garminview.ingestion.mfp_zip_parser import parse_mfp_zip, ParseResult, ParseError, MFPNoFilesError
 
 
 def _make_zip(files: dict[str, str]) -> bytes:
@@ -123,7 +123,7 @@ def test_invalid_zip_raises():
 
 def test_empty_zip_raises():
     data = _make_zip({"unrelated.txt": "hello"})
-    with pytest.raises(ValueError, match="No expected MFP files"):
+    with pytest.raises(MFPNoFilesError, match="No expected MFP files"):
         parse_mfp_zip(data)
 
 

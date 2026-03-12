@@ -80,3 +80,19 @@ async def test_upload_mfp_wrong_file_type(engine):
             files={"file": ("data.csv", b"col1,col2\n1,2\n", "text/csv")},
         )
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_upload_mfp_no_mfp_files_returns_400(engine):
+    """A valid ZIP with no MFP CSVs should return 400, not 422."""
+    from garminview.api.main import create_app
+    app = create_app(engine)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("unrelated.txt", "hello")
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/admin/upload/mfp",
+            files={"file": ("export.zip", buf.getvalue(), "application/zip")},
+        )
+    assert resp.status_code == 400

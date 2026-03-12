@@ -13,6 +13,10 @@ class ParseError:
     message: str
 
 
+class MFPNoFilesError(ValueError):
+    """Raised when a valid ZIP contains none of the expected MFP CSV files."""
+
+
 @dataclass
 class ParseResult:
     nutrition_daily: list[dict[str, Any]] = field(default_factory=list)
@@ -178,7 +182,7 @@ def parse_mfp_zip(data: bytes) -> ParseResult:
         exercise_file = _find_file(zf, "Exercise-Summary")
 
         if not any([nutrition_file, measurement_file, exercise_file]):
-            raise ValueError("No expected MFP files found in ZIP (expected Nutrition-Summary, Measurement-Summary, or Exercise-Summary)")
+            raise MFPNoFilesError("No expected MFP files found in ZIP (expected Nutrition-Summary, Measurement-Summary, or Exercise-Summary)")
 
         result = ParseResult()
 

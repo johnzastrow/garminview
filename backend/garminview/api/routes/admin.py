@@ -543,9 +543,11 @@ async def upload_mfp(
 
     data = await file.read()
 
-    from garminview.ingestion.mfp_zip_parser import parse_mfp_zip, ParseResult
+    from garminview.ingestion.mfp_zip_parser import parse_mfp_zip, ParseResult, MFPNoFilesError
     try:
         result: ParseResult = parse_mfp_zip(data)
+    except MFPNoFilesError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 
