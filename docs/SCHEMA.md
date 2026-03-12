@@ -8,6 +8,14 @@
 
 ---
 
+## Changelog
+
+| Date | Author | Description |
+|---|---|---|
+| 2026-03-12 | Claude / jcz | Initial document created. Full data dictionary for all 9 schema groups (~50 tables). Reconciled against live MariaDB — 107 divergences between Python model names and actual column names annotated with ⚠️. Added `alembic_version` and legacy table sections. |
+
+---
+
 ## Table of Contents
 
 1. [Architecture Overview](#architecture-overview)
