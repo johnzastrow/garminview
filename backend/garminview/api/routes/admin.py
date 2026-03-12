@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, UploadFile, File
 from datetime import datetime, timezone
 from typing import Annotated
 from sqlalchemy.orm import Session
@@ -27,6 +27,76 @@ def _migrate_anomaly_columns(session: Session) -> None:
         session.commit()
     except Exception:
         session.rollback()
+
+def _migrate_mfp_food_diary_columns(session: Session) -> None:
+    """Lazy migration: add extended macro columns to mfp_food_diary and create mfp_exercises table."""
+    try:
+        from sqlalchemy import inspect as sa_inspect
+        inspector = sa_inspect(session.bind)
+        existing_cols = {c["name"] for c in inspector.get_columns("mfp_food_diary")}
+        added = []
+        with session.connection() as conn:
+            for col, definition in [
+                ("sodium_mg", "FLOAT"),
+                ("sugar_g", "FLOAT"),
+                ("fiber_g", "FLOAT"),
+                ("cholesterol_mg", "FLOAT"),
+            ]:
+                if col not in existing_cols:
+                    conn.execute(text(f"ALTER TABLE mfp_food_diary ADD COLUMN {col} {definition}"))
+                    added.append(col)
+
+            existing_tables = set(inspector.get_table_names())
+            if "mfp_exercises" not in existing_tables:
+                from garminview.models.nutrition import MFPExercise
+                MFPExercise.__table__.create(bind=session.bind)
+                added.append("table:mfp_exercises")
+
+        if added:
+            session.add(SchemaVersion(
+                version="mfp_upload_v1",
+                description=f"MFP upload migration: added {', '.join(added)}",
+                applied_at=datetime.now(timezone.utc),
+                applied_by="mfp_upload",
+            ))
+        session.commit()
+    except Exception:
+        session.rollback()
+
+
+def _bulk_insert(session: Session, model, rows: list, dialect: str) -> None:
+    """Insert rows in 500-row batches (for autoincrement-PK tables)."""
+    _BATCH = 500
+    for i in range(0, len(rows), _BATCH):
+        batch = rows[i:i + _BATCH]
+        if dialect == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert as _ins
+        else:
+            from sqlalchemy.dialects.mysql import insert as _ins
+        session.execute(_ins(model).values(batch))
+    session.commit()
+
+
+def _upsert(session: Session, model, rows: list, pk_cols: list[str], dialect: str) -> None:
+    """Upsert rows in 500-row batches (for natural-PK tables)."""
+    _BATCH = 500
+    for i in range(0, len(rows), _BATCH):
+        batch = rows[i:i + _BATCH]
+        non_pk = [c for c in batch[0] if c not in pk_cols]
+        if dialect == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert as _ins
+            stmt = _ins(model).values(batch)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=pk_cols,
+                set_={c: getattr(stmt.excluded, c) for c in non_pk},
+            )
+        else:
+            from sqlalchemy.dialects.mysql import insert as _ins
+            stmt = _ins(model).values(batch)
+            stmt = stmt.on_duplicate_key_update(**{c: stmt.inserted[c] for c in non_pk})
+        session.execute(stmt)
+    session.commit()
+
 
 router = APIRouter()
 
@@ -460,3 +530,62 @@ def include_anomaly(
         session.delete(flag)
         session.commit()
     return {"excluded": False}
+
+
+@router.post("/upload/mfp")
+async def upload_mfp(
+    session: Annotated[Session, Depends(get_db)],
+    file: UploadFile = File(...),
+):
+    """Upload a MyFitnessPal export ZIP and upsert all data into the DB."""
+    if not file.filename or not file.filename.lower().endswith(".zip"):
+        raise HTTPException(status_code=422, detail="File must be a .zip")
+
+    data = await file.read()
+
+    from garminview.ingestion.mfp_zip_parser import parse_mfp_zip, ParseResult
+    try:
+        result: ParseResult = parse_mfp_zip(data)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+    _migrate_mfp_food_diary_columns(session)
+
+    dialect = session.bind.dialect.name
+    start, end = result.min_date, result.max_date
+
+    # mfp_food_diary: delete range then reinsert (autoincrement PK)
+    if result.food_diary and start and end:
+        session.execute(text("DELETE FROM mfp_food_diary WHERE date >= :s AND date <= :e"),
+                        {"s": start, "e": end})
+        session.commit()
+        from garminview.models.nutrition import MFPFoodDiaryEntry
+        _bulk_insert(session, MFPFoodDiaryEntry, result.food_diary, dialect)
+
+    # mfp_exercises: delete range then reinsert (autoincrement PK)
+    if result.exercises and start and end:
+        session.execute(text("DELETE FROM mfp_exercises WHERE date >= :s AND date <= :e"),
+                        {"s": start, "e": end})
+        session.commit()
+        from garminview.models.nutrition import MFPExercise
+        _bulk_insert(session, MFPExercise, result.exercises, dialect)
+
+    # mfp_daily_nutrition: upsert by date (natural PK)
+    if result.nutrition_daily:
+        from garminview.models.nutrition import MFPDailyNutrition
+        _upsert(session, MFPDailyNutrition, result.nutrition_daily, ["date"], dialect)
+
+    # mfp_measurements: upsert by (date, name) (natural PK)
+    if result.measurements:
+        from garminview.models.nutrition import MFPMeasurement
+        _upsert(session, MFPMeasurement, result.measurements, ["date", "name"], dialect)
+
+    session.commit()
+
+    return {
+        "nutrition_days": len(result.nutrition_daily),
+        "food_diary_rows": len(result.food_diary),
+        "measurements": len(result.measurements),
+        "exercises": len(result.exercises),
+        "errors": [{"file": e.file, "row": e.row, "message": e.message} for e in result.errors],
+    }
