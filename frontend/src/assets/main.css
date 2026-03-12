@@ -1,35 +1,48 @@
-@import './base.css';
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&display=swap');
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg:           #F3F2EE;
+  --surface:      #FFFFFF;
+  --surface-2:    #F8F7F4;
+  --border:       #E6E4DC;
+  --text:         #1A1918;
+  --muted:        #9A9690;
+  --accent:       #1D5CE5;
+  --accent-light: #EEF3FD;
+  --sidebar-w:    228px;
+  --radius:       12px;
+  --font:         'Bricolage Grotesque', system-ui, sans-serif;
+
+  /* metric accent colours */
+  --c-steps:      #1D5CE5;
+  --c-rhr:        #E5341D;
+  --c-stress:     #D97706;
+  --c-battery:    #16A34A;
+  --c-spo2:       #7C3AED;
+  --c-resp:       #0891B2;
+}
+
+html, body { height: 100%; }
+
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  line-height: 1.5;
+}
 
 #app {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  font-weight: normal;
+  height: 100vh;
+  display: flex;
 }
 
-a,
-.green {
-  text-decoration: none;
-  color: hsla(160, 100%, 37%, 1);
-  transition: 0.4s;
-  padding: 3px;
-}
-
-@media (hover: hover) {
-  a:hover {
-    background-color: hsla(160, 100%, 37%, 0.2);
-  }
-}
-
-@media (min-width: 1024px) {
-  body {
-    display: flex;
-    place-items: center;
-  }
-
-  #app {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    padding: 0 2rem;
-  }
-}
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; cursor: pointer; }
+input { font-family: inherit; }

@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from sqlalchemy import Date, DateTime, Float, Integer, String, Text, SmallInteger
+from sqlalchemy import Boolean, Date, DateTime, Float, Integer, String, Text, SmallInteger
 from sqlalchemy.orm import Mapped, mapped_column
 from garminview.core.database import Base
 
@@ -55,6 +55,10 @@ class DataQualityFlag(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     date: Mapped[date] = mapped_column(Date, index=True)
     metric: Mapped[str] = mapped_column(String(64))
-    flag_type: Mapped[str] = mapped_column(String(16))  # missing/implausible/duplicate/gap
+    flag_type: Mapped[str] = mapped_column(String(32))  # missing/implausible/duplicate/gap/user_exclusion
     value: Mapped[str | None] = mapped_column(String(128))
     message: Mapped[str | None] = mapped_column(Text)
+    # Anomaly exclusion support
+    source_table: Mapped[str | None] = mapped_column(String(64))
+    record_id: Mapped[str | None] = mapped_column(String(128))
+    excluded: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")

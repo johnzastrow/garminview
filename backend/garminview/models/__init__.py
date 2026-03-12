@@ -14,7 +14,7 @@ from garminview.models.supplemental import (
     PersonalRecord, BodyComposition, BloodPressure, Gear, GearStats
 )
 from garminview.models.derived import (
-    DailyDerived, WeeklyDerived, ActivityDerived
+    DailyDerived, WeeklyDerived, ActivityDerived, MaxHRAgingYear
 )
 from garminview.models.assessments import (
     Goal, Assessment, TrendClassification, CorrelationResult, DataQualityFlag
@@ -25,6 +25,7 @@ from garminview.models.config import (
 from garminview.models.sync import (
     SyncLog, DataProvenance, SchemaVersion
 )
+from garminview.models.nutrition import MFPDailyNutrition, MFPFoodDiaryEntry, MFPMeasurement, MFPExercise
 
 __all__ = [
     "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate",
@@ -34,8 +35,9 @@ __all__ = [
     "HRVData", "TrainingReadiness", "TrainingStatus", "BodyBatteryEvent",
     "VO2Max", "RacePrediction", "LactateThreshold", "HillScore", "EnduranceScore",
     "PersonalRecord", "BodyComposition", "BloodPressure", "Gear", "GearStats",
-    "DailyDerived", "WeeklyDerived", "ActivityDerived",
+    "DailyDerived", "WeeklyDerived", "ActivityDerived", "MaxHRAgingYear",
     "Goal", "Assessment", "TrendClassification", "CorrelationResult", "DataQualityFlag",
     "UserProfile", "AppConfig", "SyncSchedule", "GoalBenchmark", "NotificationConfig",
     "SyncLog", "DataProvenance", "SchemaVersion",
+    "MFPDailyNutrition", "MFPFoodDiaryEntry", "MFPMeasurement", "MFPExercise",
 ]

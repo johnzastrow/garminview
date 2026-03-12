@@ -13,6 +13,11 @@ const routes = [
   { path: "/correlations", component: () => import("@/views/CorrelationExplorer.vue") },
   { path: "/assessments", component: () => import("@/views/AssessmentsGoals.vue") },
   { path: "/data-quality", component: () => import("@/views/DataQuality.vue") },
+  { path: "/max-hr-aging", component: () => import("@/views/MaxHRAgingDashboard.vue") },
+  { path: "/calories", component: () => import("@/views/CaloriesDashboard.vue") },
+  { path: "/intensity", component: () => import("@/views/IntensityMinutesDashboard.vue") },
+  { path: "/nutrition", component: () => import("@/views/NutritionDashboard.vue") },
+  { path: "/profile", component: () => import("@/views/AthleteProfile.vue") },
   { path: "/admin", component: () => import("@/views/Admin.vue") },
 ]
 

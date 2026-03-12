@@ -50,3 +50,16 @@ class ActivityDerived(Base):
     cardiac_drift_pct: Mapped[float | None] = mapped_column(Float)
     hr_recovery_1min: Mapped[int | None] = mapped_column(SmallInteger)
     hr_recovery_2min: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+class MaxHRAgingYear(Base):
+    __tablename__ = "max_hr_aging_year"
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    annual_peak_hr: Mapped[int | None] = mapped_column(SmallInteger)
+    annual_p95_hr: Mapped[float | None] = mapped_column(Float)
+    annual_p90_hr: Mapped[float | None] = mapped_column(Float)
+    activity_count: Mapped[int | None] = mapped_column(Integer)
+    age_predicted_max: Mapped[float | None] = mapped_column(Float)
+    hr_reserve: Mapped[float | None] = mapped_column(Float)
+    pct_age_predicted: Mapped[float | None] = mapped_column(Float)
+    decline_rate_bpm_per_year: Mapped[float | None] = mapped_column(Float)

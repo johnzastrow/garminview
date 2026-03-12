@@ -25,14 +25,15 @@ class AnalysisEngine:
         log.info("analysis_engine_start")
         self._compute_daily_derived()
         self._compute_weekly_derived()
+        self._compute_max_hr_aging()
         self._run_trend_classifications()
         log.info("analysis_engine_complete")
 
     def _compute_daily_derived(self) -> None:
-        from sqlalchemy.dialects.sqlite import insert as upsert
-        start = self._get_earliest_date()
-        if not start:
+        if not self._get_earliest_date():
             return
+
+        dialect = self._session.bind.dialect.name  # "sqlite" or "mysql"
 
         summaries = {r.date: r for r in self._session.query(DailySummary).all()}
         sleeps = {r.date: r for r in self._session.query(Sleep).all()}
@@ -50,6 +51,7 @@ class AnalysisEngine:
         atl_series = calc_ewma_series(trimp_series, tau=7)
         ctl_series = calc_ewma_series(trimp_series, tau=42)
 
+        rows = []
         for i, d in enumerate(all_dates):
             atl = atl_series[i]
             ctl = ctl_series[i]
@@ -59,8 +61,7 @@ class AnalysisEngine:
                 time_in_bed = sleep.total_sleep_min + sleep.awake_min
                 sleep_eff = calc_sleep_efficiency(sleep.total_sleep_min,
                                                   sleep.awake_min, time_in_bed)
-
-            row = {
+            rows.append({
                 "date": d,
                 "trimp": round(trimp_series[i], 4),
                 "atl": atl,
@@ -68,9 +69,22 @@ class AnalysisEngine:
                 "tsb": round(ctl - atl, 4),
                 "acwr": calc_acwr(atl, ctl),
                 "sleep_efficiency_pct": sleep_eff,
-            }
-            stmt = upsert(DailyDerived).values(**row)
-            stmt = stmt.on_conflict_do_update(index_elements=["date"], set_=row)
+            })
+
+        _BATCH = 500
+        for i in range(0, len(rows), _BATCH):
+            batch = rows[i:i + _BATCH]
+            if dialect == "sqlite":
+                from sqlalchemy.dialects.sqlite import insert as _insert
+                stmt = _insert(DailyDerived).values(batch)
+                non_pk = [c for c in batch[0] if c != "date"]
+                stmt = stmt.on_conflict_do_update(index_elements=["date"],
+                                                  set_={c: getattr(stmt.excluded, c) for c in non_pk})
+            else:
+                from sqlalchemy.dialects.mysql import insert as _insert
+                stmt = _insert(DailyDerived).values(batch)
+                non_pk = [c for c in batch[0] if c != "date"]
+                stmt = stmt.on_duplicate_key_update(**{c: stmt.inserted[c] for c in non_pk})
             self._session.execute(stmt)
 
         self._session.commit()
@@ -83,6 +97,10 @@ class AnalysisEngine:
 
     def _compute_weekly_derived(self) -> None:
         pass  # Phase 3 continuation
+
+    def _compute_max_hr_aging(self) -> None:
+        from garminview.analysis.max_hr_aging import MaxHRAgingAnalysis
+        MaxHRAgingAnalysis(self._session).run()
 
     def _run_trend_classifications(self) -> None:
         pass  # Phase 3 continuation

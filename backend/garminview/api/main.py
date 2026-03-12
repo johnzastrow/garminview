@@ -20,11 +20,12 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins,
+        allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    from garminview.api.routes import health_check, activities, training, body, admin, sync, assessments, export
+    from garminview.api.routes import health_check, activities, training, body, admin, sync, assessments, export, nutrition
 
     app.include_router(health_check.router, prefix="/health", tags=["health"])
     app.include_router(activities.router, prefix="/activities", tags=["activities"])
@@ -34,6 +35,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     app.include_router(sync.router, prefix="/sync", tags=["sync"])
     app.include_router(assessments.router, prefix="/assessments", tags=["assessments"])
     app.include_router(export.router)
+    app.include_router(nutrition.router, prefix="/nutrition", tags=["nutrition"])
 
     # Wire real DB session factory via dependency_overrides
     factory = get_session_factory(engine)

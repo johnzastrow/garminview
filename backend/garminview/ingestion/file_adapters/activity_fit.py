@@ -1,5 +1,5 @@
 import fitparse
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Iterator
 
@@ -19,9 +19,13 @@ class ActivityFitAdapter(BaseAdapter):
         return "activity_records"  # primary; laps/zones written by orchestrator
 
     def fetch(self, start_date: date, end_date: date) -> Iterator[dict]:
-        # GarminDB names activity FIT files *_ACTIVITY.fit
+        # GarminDB names activity FIT files *_ACTIVITY.fit.
+        # Filter by file mtime: --latest downloads only recent files, so newly downloaded
+        # files have a recent mtime. Add a 2-day buffer to avoid missing edge cases.
+        mtime_cutoff = start_date - timedelta(days=2)
         for path in sorted(self._data_dir.glob("*_ACTIVITY.fit")):
-            yield from self._parse_fit(path)
+            if date.fromtimestamp(path.stat().st_mtime) >= mtime_cutoff:
+                yield from self._parse_fit(path)
 
     def _parse_fit(self, path: Path) -> Iterator[dict]:
         try:
