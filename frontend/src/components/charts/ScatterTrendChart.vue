@@ -73,6 +73,7 @@ const option = computed(() => ({
     type: "value",
     name: props.yAxisLabel,
     nameTextStyle: { color: "#9A9690", fontSize: 10 },
+    scale: true,
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: { color: "#9A9690", fontSize: 11 },
