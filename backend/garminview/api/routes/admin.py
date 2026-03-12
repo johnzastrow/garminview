@@ -49,7 +49,7 @@ def _migrate_mfp_food_diary_columns(session: Session) -> None:
             existing_tables = set(inspector.get_table_names())
             if "mfp_exercises" not in existing_tables:
                 from garminview.models.nutrition import MFPExercise
-                MFPExercise.__table__.create(bind=session.bind)
+                MFPExercise.__table__.create(conn, checkfirst=True)
                 added.append("table:mfp_exercises")
 
         if added:
@@ -74,7 +74,6 @@ def _bulk_insert(session: Session, model, rows: list, dialect: str) -> None:
         else:
             from sqlalchemy.dialects.mysql import insert as _ins
         session.execute(_ins(model).values(batch))
-    session.commit()
 
 
 def _upsert(session: Session, model, rows: list, pk_cols: list[str], dialect: str) -> None:
@@ -95,7 +94,6 @@ def _upsert(session: Session, model, rows: list, pk_cols: list[str], dialect: st
             stmt = _ins(model).values(batch)
             stmt = stmt.on_duplicate_key_update(**{c: stmt.inserted[c] for c in non_pk})
         session.execute(stmt)
-    session.commit()
 
 
 router = APIRouter()
@@ -560,7 +558,6 @@ async def upload_mfp(
     if result.food_diary and start and end:
         session.execute(text("DELETE FROM mfp_food_diary WHERE date >= :s AND date <= :e"),
                         {"s": start, "e": end})
-        session.commit()
         from garminview.models.nutrition import MFPFoodDiaryEntry
         _bulk_insert(session, MFPFoodDiaryEntry, result.food_diary, dialect)
 
@@ -568,7 +565,6 @@ async def upload_mfp(
     if result.exercises and start and end:
         session.execute(text("DELETE FROM mfp_exercises WHERE date >= :s AND date <= :e"),
                         {"s": start, "e": end})
-        session.commit()
         from garminview.models.nutrition import MFPExercise
         _bulk_insert(session, MFPExercise, result.exercises, dialect)
 
