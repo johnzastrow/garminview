@@ -57,23 +57,19 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/garminview-frontend:latest
 
       - name: Create GitHub Release
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          OWNER_LC=$(echo "$OWNER" | tr '[:upper:]' '[:lower:]')
-          gh release create "$TAG" \
-            --title "GarminView $TAG" \
-            --notes "## Docker images
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: GarminView ${{ steps.version.outputs.tag }}
+          body: |
+            ## Docker images
 
-\`\`\`bash
-docker pull ghcr.io/${OWNER_LC}/garminview-backend:${TAG}
-docker pull ghcr.io/${OWNER_LC}/garminview-frontend:${TAG}
+            ```bash
+            docker pull ghcr.io/${{ github.repository_owner }}/garminview-backend:${{ steps.version.outputs.tag }}
+            docker pull ghcr.io/${{ github.repository_owner }}/garminview-frontend:${{ steps.version.outputs.tag }}
 
-# Deploy
-IMAGE_TAG=${TAG} docker compose up -d
-\`\`\`
+            # Deploy with a specific version
+            IMAGE_TAG=${{ steps.version.outputs.tag }} docker compose up -d
+            ```
 
-See [docs/SETUP.md](docs/SETUP.md) for the full deployment guide."
+            See [docs/SETUP.md](docs/SETUP.md) for the full deployment guide.
