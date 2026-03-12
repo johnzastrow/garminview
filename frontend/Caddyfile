@@ -1,0 +1,15 @@
+:80 {
+    encode gzip
+
+    # Proxy all API paths to the backend container.
+    # flush_interval -1 disables response buffering — required for SSE (sync log stream).
+    @api path_regexp ^/(health|training|body|admin|sync|activities|assessments|export|nutrition|docs|openapi\.json)(/.*)?$
+    reverse_proxy @api backend:8000 {
+        flush_interval -1
+    }
+
+    # Serve Vue.js SPA with history-mode fallback
+    root * /srv
+    file_server
+    try_files {path} /index.html
+}

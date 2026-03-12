@@ -1,0 +1,24 @@
+services:
+
+  backend:
+    image: ghcr.io/johnzastrow/garminview-backend:${IMAGE_TAG:-latest}
+    env_file: .env
+    volumes:
+      # Raw Garmin data written by garmindb_cli.py on the host (read-only in container)
+      - ${HEALTH_DATA_DIR:-~/HealthData}:/data/HealthData:ro
+      # Garmin Connect credentials for garmindb_cli.py (read-only)
+      - ${GARMINDB_CONFIG_DIR:-~/.GarminDb}:/root/.GarminDb:ro
+      # Persistent sync log
+      - garminview-logs:/app/logs
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/johnzastrow/garminview-frontend:${IMAGE_TAG:-latest}
+    ports:
+      - "${GARMINVIEW_PORT:-8080}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  garminview-logs:

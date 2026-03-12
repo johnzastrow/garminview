@@ -231,6 +231,86 @@ Open `http://localhost:5173` in your browser.
 
 ---
 
+## Docker deployment (production)
+
+Use the prebuilt images from GitHub Container Registry when MariaDB is running on another host.
+
+### Prerequisites
+
+- Docker Engine 24+ and Docker Compose v2
+- MariaDB already running elsewhere with an empty `garminview` database:
+  ```sql
+  CREATE DATABASE garminview CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+  GRANT ALL PRIVILEGES ON garminview.* TO 'garminview'@'%' IDENTIFIED BY 'yourpassword';
+  ```
+- `~/HealthData/` populated by `garmindb_cli.py` on the host
+
+### Deploy
+
+```bash
+cd ~/Github/garminview
+
+# 1. Create your .env from the example
+cp .env.example .env
+# Edit .env: set GARMINVIEW_DB_URL, GARMINVIEW_SECRET_KEY, GARMINVIEW_CORS_ORIGINS
+
+# 2. Pull images and start
+docker compose up -d
+
+# 3. Verify
+curl http://localhost:8080/health/daily?days=1
+```
+
+Open the UI at `http://your-server:8080`.
+
+### Pin to a specific release
+
+```bash
+# In .env:
+IMAGE_TAG=v0.2.0
+```
+
+All available releases: https://github.com/johnzastrow/garminview/releases
+
+### How the containers connect
+
+```
+Browser
+  │
+  ▼  :8080
+frontend (Caddy)
+  ├── /* → /srv (static Vue.js files)
+  └── /health /training /body /admin /sync … → backend:8000 (reverse proxy)
+                                                    │
+                                               backend (FastAPI + uvicorn)
+                                                    │
+                                               MariaDB (external host)
+```
+
+Caddy runs with `flush_interval -1` on the proxy so the SSE sync log stream works without buffering.
+
+### Keep data current (Docker)
+
+`garmindb_cli.py` runs on the **host** (not in the container) and writes to `~/HealthData/`. The backend container reads from that directory via a read-only volume mount.
+
+```bash
+# On the host — download latest Garmin data
+garmindb_cli.py --all --download --import --latest
+
+# Then trigger garminview ingestion via the Admin UI at http://your-server:8080/admin
+# — or via curl:
+curl -X POST http://localhost:8080/sync/trigger
+```
+
+Automate with cron (same as bare-metal setup):
+
+```cron
+0 6 * * * garmindb_cli.py --all --download --import --latest >> ~/garmindb.log 2>&1
+5 6 * * * curl -s -X POST http://localhost:8080/sync/trigger
+```
+
+---
+
 ## Step 8 — (Optional) Marimo notebooks
 
 The notebooks in `backend/notebooks/` use the same database via the shared
@@ -295,7 +375,7 @@ Garmin Connect sometimes requires MFA on first login. Run the CLI directly in
 your terminal so you can respond to the prompt:
 
 ```bash
-garmindb_cli.py --all --download --import --analyze --latest
+garmindb_cli.py --all --download --import --latest
 ```
 
 Follow the on-screen MFA prompt. Subsequent runs will use the cached session.

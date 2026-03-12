@@ -1,0 +1,16 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+.ruff_cache
+garminview.db
+*.db
+logs/
+*.log
+.env
+tests/
+notebooks/
+prep.sh
+scripts/

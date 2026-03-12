@@ -16,7 +16,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         from garminview.core.database import create_db_engine
         engine = create_db_engine(config)
 
-    app = FastAPI(title="GarminView API", version="1.0.0")
+    app = FastAPI(title="GarminView API", version="0.3.0")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins,
@@ -48,6 +48,6 @@ def create_app(engine: Engine | None = None) -> FastAPI:
 
     @app.get("/")
     def root():
-        return {"status": "ok", "version": "1.0.0"}
+        return {"status": "ok", "version": "0.3.0"}
 
     return app
