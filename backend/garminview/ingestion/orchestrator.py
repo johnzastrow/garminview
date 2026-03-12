@@ -204,6 +204,7 @@ class IngestionOrchestrator:
             "mfp_daily_nutrition": m.MFPDailyNutrition,
             "mfp_food_diary": m.MFPFoodDiaryEntry,
             "mfp_measurements": m.MFPMeasurement,
+            "mfp_exercises": m.MFPExercise,
         }
         if table_name not in TABLE_MAP:
             raise KeyError(f"No model mapped for table '{table_name}'. Add it to TABLE_MAP.")
