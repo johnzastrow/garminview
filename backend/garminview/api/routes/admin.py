@@ -29,13 +29,37 @@ def _migrate_anomaly_columns(session: Session) -> None:
         session.rollback()
 
 def _migrate_mfp_food_diary_columns(session: Session) -> None:
-    """Lazy migration: add extended macro columns to mfp_food_diary and create mfp_exercises table."""
+    """Lazy migration: create all MFP tables if absent, add extended macro columns to mfp_food_diary."""
     try:
+        from garminview.models.nutrition import (
+            MFPDailyNutrition, MFPFoodDiaryEntry, MFPMeasurement, MFPExercise,
+        )
         from sqlalchemy import inspect as sa_inspect
         inspector = sa_inspect(session.bind)
-        existing_cols = {c["name"] for c in inspector.get_columns("mfp_food_diary")}
+        existing_tables = set(inspector.get_table_names())
         added = []
+
+        # Create any missing MFP tables (idempotent via checkfirst=True)
         with session.connection() as conn:
+            for model, tname in [
+                (MFPDailyNutrition, "mfp_daily_nutrition"),
+                (MFPFoodDiaryEntry, "mfp_food_diary"),
+                (MFPMeasurement, "mfp_measurements"),
+                (MFPExercise, "mfp_exercises"),
+            ]:
+                if tname not in existing_tables:
+                    model.__table__.create(conn, checkfirst=True)
+                    added.append(f"table:{tname}")
+                elif tname == "mfp_measurements":
+                    # Detect GarminDB-schema table (has BodyFat_Perc instead of name)
+                    existing_col_names = {c["name"] for c in inspector.get_columns(tname)}
+                    if "name" not in existing_col_names:
+                        conn.execute(text("DROP TABLE mfp_measurements"))
+                        MFPMeasurement.__table__.create(conn, checkfirst=True)
+                        added.append("table:mfp_measurements_recreated")
+
+            # Add extended macro columns to mfp_food_diary if absent
+            existing_cols = {c["name"] for c in inspector.get_columns("mfp_food_diary")}
             for col, definition in [
                 ("sodium_mg", "FLOAT"),
                 ("sugar_g", "FLOAT"),
@@ -45,12 +69,6 @@ def _migrate_mfp_food_diary_columns(session: Session) -> None:
                 if col not in existing_cols:
                     conn.execute(text(f"ALTER TABLE mfp_food_diary ADD COLUMN {col} {definition}"))
                     added.append(col)
-
-            existing_tables = set(inspector.get_table_names())
-            if "mfp_exercises" not in existing_tables:
-                from garminview.models.nutrition import MFPExercise
-                MFPExercise.__table__.create(conn, checkfirst=True)
-                added.append("table:mfp_exercises")
 
         if added:
             session.add(SchemaVersion(
