@@ -46,7 +46,7 @@ One row per logged session.
 | `workout_date` | DATETIME | Full timestamp — used to window Garmin intraday data |
 | `workout_name` | TEXT | |
 | `workout_type` | TEXT | strength, metcon, cardio, mixed |
-| `total_time_s` | INTEGER | nullable; start + duration = workout window for session-vitals |
+| `total_time_s` | INTEGER | nullable; start + duration = workout window for session-vitals. May be filled from a matching Garmin activity if Actalog has no duration recorded. |
 | `notes` | TEXT | nullable |
 | `synced_at` | DATETIME | |
 
@@ -189,7 +189,9 @@ Actalog stores weights in the user's chosen unit (lbs or kg) without tagging the
 
 ### Session vitals window
 
-`total_time_s` is nullable. When `GET /actalog/workouts/{id}/session-vitals` is called for a workout with `total_time_s IS NULL`, the endpoint returns HTTP 422 with message `"Workout has no recorded duration; session vitals unavailable"`. The frontend Session Vitals panel must handle this gracefully and show a descriptive empty state.
+`total_time_s` is nullable — workouts without a recorded duration are kept and are valuable (the presence of a workout on a day is meaningful regardless of duration). When `total_time_s IS NULL`, `GET /actalog/workouts/{id}/session-vitals` still returns the workout metadata, movements, and WOD scores, but omits the intraday HR, body battery, and stress window (since the time bounds are unknown).
+
+As a best-effort fallback, the sync step may attempt to match the workout to a same-day Garmin activity by date and populate `total_time_s` from the Garmin activity's elapsed time if a single unambiguous match exists. This match is attempted but never required — `total_time_s` remains NULL if no confident match is found.
 
 ### Scheduling
 
@@ -203,7 +205,7 @@ A new APScheduler `IntervalTrigger` job `sync_actalog` registered at startup. Re
 | Individual workout fetch fails | Log, skip that workout, continue |
 | HTTP 429 | `tenacity` exponential backoff (existing pattern) |
 | Network timeout | Fail sync cleanly, retry on next scheduled run |
-| `total_time_s` NULL on session-vitals request | Return HTTP 422 with descriptive message |
+| `total_time_s` NULL on session-vitals request | Return workout metadata + movements + WODs; omit HR/body-battery/stress window. No error. |
 
 ### New files
 
@@ -227,7 +229,7 @@ alembic/versions/XXXX_add_actalog_tables.py      — Alembic migration
 |--------|------|------------|-------------|
 | `GET` | `/actalog/workouts` | yes | Paginated session list: id, workout_date, name, type, total_time_s, movement_count |
 | `GET` | `/actalog/workouts/{id}` | — | Full session detail: workout + all movements + all WODs |
-| `GET` | `/actalog/workouts/{id}/session-vitals` | — | Garmin intraday data for workout window: minute-level HR, body battery events, stress samples. Returns 422 if `total_time_s` is NULL. |
+| `GET` | `/actalog/workouts/{id}/session-vitals` | — | Workout metadata + movements + WODs always returned. Garmin intraday data (minute-level HR, body battery events, stress samples) included only when `total_time_s` is non-NULL. Response includes a `has_vitals: bool` flag so the frontend knows whether to render the charts. |
 | `GET` | `/actalog/movements` | — | Reference list of movements seen in logged workouts |
 | `GET` | `/actalog/movements/{id}/history` | yes | All performances for one movement: date, sets, reps, weight_kg, rpe, is_pr |
 | `GET` | `/actalog/prs` | — | Movement PRs (from `actalog_personal_records`) + WOD PRs (derived from `actalog_workout_wods WHERE is_pr = true` grouped by `wod_id`, taking best score per score_type) |
@@ -290,12 +292,12 @@ Date-range view. Training load (total volume = Σ sets × reps × weight_kg per 
 Month-grid calendar. Days with logged workouts highlighted; cell color encodes workout type (strength = blue, metcon = orange, cardio = green, mixed = purple). Previous/next month navigation.
 
 Clicking a workout day opens a **Session Vitals panel** below the calendar:
-- Workout metadata: name, type, duration, notes
-- Movements table and WOD scores (same as Tab 1 inline expansion)
-- If `total_time_s` is NULL: show message "No duration recorded — session vitals unavailable"
-- Otherwise:
+- Workout metadata: name, type, duration, notes — always shown
+- Movements table and WOD scores (same as Tab 1 inline expansion) — always shown
+- When `has_vitals: true` in the API response:
   - High-resolution HR chart: minute-level `monitoring_heart_rate` data for `[workout_date, workout_date + total_time_s]`, rendered as a dense `TimeSeriesChart`
   - Body battery and stress readings for the same window on the same time axis
+- When `has_vitals: false`: show a muted note "No duration recorded — heart rate window unavailable" in place of the charts. The workout detail is still fully displayed.
 
 ---
 
@@ -318,5 +320,5 @@ For SQLite compatibility in dev, the interval arithmetic uses Python: `workout_d
 - Unit tests for `actalog_client.py`: mock HTTP responses for login (`remember_me: true`), `/auth/refresh`, pagination, 429 backoff
 - Unit tests for `actalog_sync.py`: upsert idempotency, PR aggregation correctness, weight unit conversion, sync_log entry format
 - Integration test: test DB, full sync against recorded API fixtures, assert row counts and FK integrity
-- API tests: each endpoint returns correct shape; date filters respected; session-vitals returns 422 for NULL duration
+- API tests: each endpoint returns correct shape; date filters respected; session-vitals returns `has_vitals: false` with full workout detail when `total_time_s` is NULL
 - Manual smoke test: `POST /admin/actalog/sync` against live `https://al.fluidgrid.site`
