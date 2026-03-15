@@ -21,6 +21,7 @@ from garminview.api.schemas.actalog import (
     CrossRefItem,
     ActalogConfigOut,
     ActalogSyncStatus,
+    ActalogConfigIn,
 )
 from garminview.models.actalog import (
     ActalogWorkout,
@@ -404,54 +405,66 @@ def get_actalog_config(
 
 
 @admin_router.put("/config")
-def put_actalog_config(
+def update_admin_config(
     session: Annotated[Session, Depends(get_db)],
-    url: str | None = Query(default=None),
-    email: str | None = Query(default=None),
-    password: str | None = Query(default=None),
-    weight_unit: str | None = Query(default=None),
-    sync_interval_hours: int | None = Query(default=None),
-    sync_enabled: bool | None = Query(default=None),
+    body: ActalogConfigIn,
 ):
-    """Write actalog config to app_config table."""
-    if url is not None:
-        _set_cfg(session, "actalog_url", url)
-    if email is not None:
-        _set_cfg(session, "actalog_email", email)
-    if password is not None:
-        _set_cfg(session, "actalog_password", password)
-    if weight_unit is not None:
-        _set_cfg(session, "actalog_weight_unit", weight_unit)
-    if sync_interval_hours is not None:
-        _set_cfg(session, "actalog_sync_interval_hours", str(sync_interval_hours))
-    if sync_enabled is not None:
-        _set_cfg(session, "actalog_sync_enabled", "true" if sync_enabled else "false")
+    """Write actalog config to app_config table. Accepts a JSON request body."""
+    now = datetime.now()
+    updates = {
+        "actalog_url": body.url,
+        "actalog_email": body.email,
+        "actalog_password": body.password,
+        "actalog_weight_unit": body.weight_unit,
+        "actalog_sync_interval_hours": str(body.sync_interval_hours) if body.sync_interval_hours is not None else None,
+        "actalog_sync_enabled": str(body.sync_enabled).lower() if body.sync_enabled is not None else None,
+    }
+    for key, val in updates.items():
+        if val is None:
+            continue
+        row = session.get(AppConfig, key)
+        if row is None:
+            row = AppConfig(key=key, category="actalog", data_type="string")
+            session.add(row)
+        row.value = val
+        row.updated_at = now
     session.commit()
     return {"ok": True}
 
 
 @admin_router.post("/sync")
-async def trigger_sync(
-    session: Annotated[Session, Depends(get_db)],
-):
+async def trigger_sync(session: Annotated[Session, Depends(get_db)]):
     """Run ActalogSync.run() using stored config. Returns counts dict."""
+    url = _get_cfg(session, "actalog_url")
+    email = _get_cfg(session, "actalog_email")
+    password = _get_cfg(session, "actalog_password")
+    if not url or not email or not password:
+        raise HTTPException(400, "Actalog not configured — set url, email, and password first")
+
     from garminview.ingestion.actalog_client import ActalogClient
     from garminview.ingestion.actalog_sync import ActalogSync
     from garminview.ingestion.sync_logger import SyncLogger
 
-    url = _get_cfg(session, "actalog_url")
-    email = _get_cfg(session, "actalog_email")
-    password = _get_cfg(session, "actalog_password")
     weight_unit = _get_cfg(session, "actalog_weight_unit") or "kg"
+    refresh_token = _get_cfg(session, "actalog_refresh_token")
 
-    if not url or not email or not password:
-        raise HTTPException(status_code=400, detail="Actalog URL, email, and password must be configured")
+    client = ActalogClient(
+        base_url=url, email=email, password=password,
+        refresh_token=refresh_token, weight_unit=weight_unit,
+    )
+    sync_log = SyncLogger(session, source="actalog", mode="full")
+    orchestrator = ActalogSync(session, weight_unit=weight_unit)
 
-    client = ActalogClient(base_url=url, email=email, password=password)
-    sync_log = SyncLogger(session=session, source="actalog", mode="full")
-    actalog_sync = ActalogSync(session=session, weight_unit=weight_unit)
+    try:
+        counts = await orchestrator.run(client, sync_log)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Actalog sync failed: {exc}")
 
-    counts = await actalog_sync.run(client=client, sync_log=sync_log)
+    if client.refresh_token and client.refresh_token != refresh_token:
+        _set_cfg(session, "actalog_refresh_token", client.refresh_token)
+    _set_cfg(session, "actalog_last_sync", datetime.now().isoformat())
+    session.commit()
+
     return counts
 
 
@@ -474,10 +487,10 @@ async def test_connection(
 
     client = ActalogClient(base_url=resolved_url, email=resolved_email, password=resolved_password)
     try:
-        await client.authenticate()
+        await client._login()
         return {"ok": True}
     except Exception as exc:
-        return {"ok": False, "error": str(exc)}
+        raise HTTPException(status_code=400, detail=f"Connection failed: {exc}")
 
 
 @admin_router.get("/sync/status", response_model=ActalogSyncStatus)

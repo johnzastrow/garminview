@@ -118,3 +118,12 @@ class ActalogSyncStatus(BaseModel):
     status: str | None
     records_upserted: int | None
     error_message: str | None
+
+
+class ActalogConfigIn(BaseModel):
+    url: str | None = None
+    email: str | None = None
+    password: str | None = None
+    weight_unit: str | None = None
+    sync_interval_hours: int | None = None
+    sync_enabled: bool | None = None

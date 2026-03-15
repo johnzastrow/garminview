@@ -100,6 +100,24 @@ async def test_admin_config_get(engine):
 async def test_admin_config_put(engine):
     app = create_app(engine)
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        r = await client.put("/admin/actalog/config", params={"url": "https://test.example", "email": "a@b.com"})
+        r = await client.put("/admin/actalog/config", json={"url": "https://test.example", "email": "a@b.com"})
     assert r.status_code == 200
     assert r.json().get("ok") is True
+
+
+@pytest.mark.asyncio
+async def test_trigger_sync_not_configured(engine):
+    """POST /admin/actalog/sync must return 400 when Actalog is not configured."""
+    app = create_app(engine)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post("/admin/actalog/sync")
+    assert r.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_test_connection_missing_params(engine):
+    """POST /admin/actalog/test-connection must return 400 when credentials are missing."""
+    app = create_app(engine)
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.post("/admin/actalog/test-connection")
+    assert r.status_code == 400
