@@ -45,16 +45,27 @@ function typeColor(t: string | null): string {
 const movements = ref<{ id: number; name: string | null; movement_type: string | null }[]>([])
 const selectedMovement = ref<number | null>(null)
 const movementHistory = ref<any[]>([])
+const sidebarError = ref("")
 
 async function loadMovements() {
-  const { data } = await api.get("/actalog/movements")
-  movements.value = data
+  sidebarError.value = ""
+  try {
+    const { data } = await api.get("/actalog/movements")
+    movements.value = data
+  } catch {
+    sidebarError.value = "Failed to load movements."
+  }
 }
 
 async function selectMovement(id: number) {
   selectedMovement.value = id
-  const { data } = await api.get(`/actalog/movements/${id}/history`)
-  movementHistory.value = data
+  sidebarError.value = ""
+  try {
+    const { data } = await api.get(`/actalog/movements/${id}/history`)
+    movementHistory.value = data
+  } catch {
+    sidebarError.value = "Failed to load movement history."
+  }
 }
 
 const movementChartOption = computed(() => ({
@@ -84,14 +95,24 @@ const wodHistory = ref<any[]>([])
 const selectedWodMeta = computed(() => wods.value.find(w => w.id === selectedWod.value) ?? null)
 
 async function loadWods() {
-  const { data } = await api.get("/actalog/wods")
-  wods.value = data
+  sidebarError.value = ""
+  try {
+    const { data } = await api.get("/actalog/wods")
+    wods.value = data
+  } catch {
+    sidebarError.value = "Failed to load WODs."
+  }
 }
 
 async function selectWod(id: number) {
   selectedWod.value = id
-  const { data } = await api.get(`/actalog/wods/${id}/history`)
-  wodHistory.value = data
+  sidebarError.value = ""
+  try {
+    const { data } = await api.get(`/actalog/wods/${id}/history`)
+    wodHistory.value = data
+  } catch {
+    sidebarError.value = "Failed to load WOD history."
+  }
 }
 
 const wodChartOption = computed(() => {
@@ -170,7 +191,7 @@ const calYear = ref(new Date().getFullYear())
 const calMonth = ref(new Date().getMonth()) // 0-indexed
 const selectedDay = ref<string | null>(null)
 
-function calDays(): Array<{ date: string; day: number; workouts: WorkoutListItem[] } | null> {
+const calDays = computed((): Array<{ date: string; day: number; workouts: WorkoutListItem[] } | null> => {
   const first = new Date(calYear.value, calMonth.value, 1)
   const totalDays = new Date(calYear.value, calMonth.value + 1, 0).getDate()
   const startPad = first.getDay()
@@ -181,7 +202,7 @@ function calDays(): Array<{ date: string; day: number; workouts: WorkoutListItem
     cells.push({ date: dateStr, day: d, workouts: store.workoutsByDate.get(dateStr) ?? [] })
   }
   return cells
-}
+})
 
 function prevMonth() {
   if (calMonth.value === 0) { calYear.value--; calMonth.value = 11 } else calMonth.value--
@@ -322,6 +343,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
         </div>
         <div class="split-main">
           <div v-if="!selectedMovement" class="muted">Select a movement to see its history.</div>
+          <div v-if="sidebarError" class="err-msg">{{ sidebarError }}</div>
           <template v-else>
             <v-chart v-if="movementHistory.some((r: any) => r.weight_kg)" :option="movementChartOption" autoresize style="height:240px" />
             <table v-if="movementHistory.length" class="data-table" style="margin-top:16px">
@@ -357,6 +379,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
         </div>
         <div class="split-main">
           <div v-if="!selectedWod" class="muted">Select a WOD to see its performance history.</div>
+          <div v-if="sidebarError" class="err-msg">{{ sidebarError }}</div>
           <template v-else>
             <div class="wod-meta" v-if="selectedWodMeta">
               Score type: <strong>{{ selectedWodMeta.score_type ?? "—" }}</strong>
@@ -423,7 +446,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
       <div class="cal-grid">
         <div v-for="d in ['Sun','Mon','Tue','Wed','Thu','Fri','Sat']" :key="d" class="cal-header">{{ d }}</div>
         <div
-          v-for="(cell, i) in calDays()"
+          v-for="(cell, i) in calDays"
           :key="i"
           :class="['cal-cell', { empty: !cell, active: cell?.date === selectedDay, 'has-workout': cell && cell.workouts.length > 0 }]"
           @click="cell && cell.workouts.length && selectDay(cell.date)"
@@ -440,7 +463,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 
       <!-- Session Vitals Panel -->
       <div v-if="selectedDay && store.sessionVitals" class="vitals-panel">
-        <h3>{{ selectedDay }} — {{ store.sessionVitals.workout.workout_name }}</h3>
+        <h3>{{ selectedDay }} — {{ store.sessionVitals.workout.workout_name ?? "Unnamed" }}</h3>
         <div class="vitals-meta">
           <span>Type: {{ store.sessionVitals.workout.workout_type ?? "—" }}</span>
           <span>Duration: {{ fmtDuration(store.sessionVitals.workout.total_time_s) }}</span>
@@ -527,4 +550,5 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .vitals-panel h3 { font-size: 1rem; font-weight: 600; color: var(--text); margin-bottom: 8px; }
 .vitals-meta { display: flex; gap: 20px; font-size: 0.83rem; color: var(--muted); margin-bottom: 12px; }
 .vitals-none { font-style: italic; margin-top: 12px; }
+.err-msg { color: #EF4444; font-size: 0.83rem; padding: 8px 0; }
 </style>
