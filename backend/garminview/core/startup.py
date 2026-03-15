@@ -78,7 +78,7 @@ def start_scheduler(session_factory) -> None:
                 if client.refresh_token and client.refresh_token != refresh_token:
                     _set_actalog_cfg(session, "actalog_refresh_token", client.refresh_token)
                 import datetime as _dt
-                _set_actalog_cfg(session, "actalog_last_sync", _dt.datetime.now().isoformat())
+                _set_actalog_cfg(session, "actalog_last_sync", _dt.datetime.now(_dt.timezone.utc).isoformat())
                 session.commit()
                 _log.info("Actalog scheduled sync complete")
             except Exception as exc:
