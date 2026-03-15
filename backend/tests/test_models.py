@@ -34,6 +34,17 @@ def test_mfp_exercise_model(session):
     assert row.duration_min == 30.0
 
 
+def test_actalog_tables_created(engine):
+    from sqlalchemy import inspect
+    tables = inspect(engine).get_table_names()
+    for t in [
+        "actalog_workouts", "actalog_movements", "actalog_wods",
+        "actalog_workout_movements", "actalog_workout_wods",
+        "actalog_personal_records",
+    ]:
+        assert t in tables, f"Missing table: {t}"
+
+
 def test_mfp_food_diary_extended_columns(session):
     from garminview.models.nutrition import MFPFoodDiaryEntry
     from datetime import date

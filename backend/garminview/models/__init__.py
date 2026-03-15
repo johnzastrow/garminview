@@ -26,6 +26,10 @@ from garminview.models.sync import (
     SyncLog, DataProvenance, SchemaVersion
 )
 from garminview.models.nutrition import MFPDailyNutrition, MFPFoodDiaryEntry, MFPMeasurement, MFPExercise
+from garminview.models.actalog import (
+    ActalogWorkout, ActalogMovement, ActalogWod,
+    ActalogWorkoutMovement, ActalogWorkoutWod, ActalogPersonalRecord,
+)
 
 __all__ = [
     "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate",
@@ -40,4 +44,6 @@ __all__ = [
     "UserProfile", "AppConfig", "SyncSchedule", "GoalBenchmark", "NotificationConfig",
     "SyncLog", "DataProvenance", "SchemaVersion",
     "MFPDailyNutrition", "MFPFoodDiaryEntry", "MFPMeasurement", "MFPExercise",
+    "ActalogWorkout", "ActalogMovement", "ActalogWod",
+    "ActalogWorkoutMovement", "ActalogWorkoutWod", "ActalogPersonalRecord",
 ]
