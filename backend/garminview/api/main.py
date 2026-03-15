@@ -37,6 +37,10 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     app.include_router(export.router)
     app.include_router(nutrition.router, prefix="/nutrition", tags=["nutrition"])
 
+    from garminview.api.routes import actalog as actalog_routes
+    app.include_router(actalog_routes.router, prefix="/actalog", tags=["actalog"])
+    app.include_router(actalog_routes.admin_router, prefix="/admin/actalog", tags=["actalog-admin"])
+
     # Wire real DB session factory via dependency_overrides
     factory = get_session_factory(engine)
 
