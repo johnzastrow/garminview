@@ -8,7 +8,7 @@ from garminview.core.database import Base
 
 class ActalogWorkout(Base):
     __tablename__ = "actalog_workouts"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workout_date: Mapped[datetime | None] = mapped_column(DateTime)
     workout_name: Mapped[str | None] = mapped_column(Text)
     workout_type: Mapped[str | None] = mapped_column(String(32))
@@ -19,14 +19,14 @@ class ActalogWorkout(Base):
 
 class ActalogMovement(Base):
     __tablename__ = "actalog_movements"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str | None] = mapped_column(Text)
     movement_type: Mapped[str | None] = mapped_column(String(32))
 
 
 class ActalogWod(Base):
     __tablename__ = "actalog_wods"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str | None] = mapped_column(Text)
     regime: Mapped[str | None] = mapped_column(String(64))
     score_type: Mapped[str | None] = mapped_column(String(32))
@@ -34,7 +34,7 @@ class ActalogWod(Base):
 
 class ActalogWorkoutMovement(Base):
     __tablename__ = "actalog_workout_movements"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workout_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("actalog_workouts.id"))
     movement_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("actalog_movements.id"))
     sets: Mapped[int | None] = mapped_column(Integer)
@@ -43,13 +43,13 @@ class ActalogWorkoutMovement(Base):
     time_s: Mapped[int | None] = mapped_column(Integer)
     distance_m: Mapped[float | None] = mapped_column(Float)
     rpe: Mapped[int | None] = mapped_column(Integer)
-    is_pr: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_pr: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     order_index: Mapped[int | None] = mapped_column(Integer)
 
 
 class ActalogWorkoutWod(Base):
     __tablename__ = "actalog_workout_wods"
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     workout_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("actalog_workouts.id"))
     wod_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("actalog_wods.id"))
     score_value: Mapped[str | None] = mapped_column(Text)
@@ -58,7 +58,7 @@ class ActalogWorkoutWod(Base):
     reps: Mapped[int | None] = mapped_column(Integer)
     weight_kg: Mapped[float | None] = mapped_column(Float)
     rpe: Mapped[int | None] = mapped_column(Integer)
-    is_pr: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_pr: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     order_index: Mapped[int | None] = mapped_column(Integer)
 
 
