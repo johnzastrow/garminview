@@ -129,13 +129,61 @@
         <div v-if="uploadError" class="upload-error">{{ uploadError }}</div>
       </div>
 
+      <!-- Actalog Integration tab -->
+      <div v-if="activeTab === 'actalog'" class="actalog-panel">
+        <h2>Actalog Integration</h2>
+        <div v-if="actalogLoading" class="muted">Loading config…</div>
+        <template v-else>
+          <div class="field-row">
+            <label>Base URL</label>
+            <input v-model="actalogForm.url" class="input-sm" placeholder="https://al.example.com" />
+          </div>
+          <div class="field-row">
+            <label>Email</label>
+            <input v-model="actalogForm.email" class="input-sm" type="email" />
+          </div>
+          <div class="field-row">
+            <label>Password</label>
+            <input v-model="actalogForm.password" class="input-sm" :type="showPw ? 'text' : 'password'" />
+            <button class="link-btn" @click="showPw = !showPw">{{ showPw ? 'Hide' : 'Show' }}</button>
+          </div>
+          <div class="field-row">
+            <label>Weight Unit</label>
+            <select v-model="actalogForm.weight_unit" class="select-sm">
+              <option value="kg">kg</option>
+              <option value="lbs">lbs</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label>Sync Interval (hours)</label>
+            <input v-model.number="actalogForm.sync_interval_hours" class="input-sm" type="number" min="1" max="168" />
+          </div>
+          <div class="field-row">
+            <label>Sync Enabled</label>
+            <input v-model="actalogForm.sync_enabled" type="checkbox" />
+          </div>
+          <div class="action-row">
+            <button class="btn-primary" @click="saveActalog">Save</button>
+            <button class="btn-secondary" @click="testActalogConnection">Test Connection</button>
+            <button class="btn-secondary" @click="syncActalog" :disabled="actalogSyncing">
+              {{ actalogSyncing ? 'Syncing…' : 'Sync Now' }}
+            </button>
+          </div>
+          <div v-if="actalogMsg" :class="['status-msg', actalogMsgOk ? 'ok' : 'err']">{{ actalogMsg }}</div>
+          <div v-if="actalogConfig?.last_sync" class="muted" style="font-size:0.78rem;margin-top:4px">
+            Last sync: {{ actalogConfig.last_sync?.slice(0, 19).replace('T', ' ') }}
+          </div>
+        </template>
+      </div>
+
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, onUnmounted, nextTick } from "vue"
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from "vue"
 import { api } from "@/api/client"
+import { useActalogStore } from "@/stores/actalog"
 
 const activeTab = ref("sync")
 const tabs = [
@@ -144,6 +192,7 @@ const tabs = [
   { id: "config", label: "Config" },
   { id: "logs", label: "Sync Logs" },
   { id: "uploads", label: "Uploads" },
+  { id: "actalog", label: "Actalog" },
 ]
 
 // --- Sync ---
@@ -230,6 +279,7 @@ onMounted(() => {
   connectSSE()
   api.get("/admin/schedules").then((r) => { schedules.value = r.data.schedules ?? []; schedulesLoading.value = false })
   api.get("/admin/config").then((r) => { config.value = r.data.config ?? []; configLoading.value = false })
+  _loadActalogConfig()
 })
 
 onUnmounted(() => sse?.close())
@@ -284,6 +334,71 @@ async function submitUpload() {
     uploadError.value = e.response?.data?.detail ?? e.message ?? "Upload failed"
   } finally {
     uploading.value = false
+  }
+}
+
+// --- Actalog ---
+const actalogStore = useActalogStore()
+const actalogLoading = ref(true)
+const actalogConfig = computed(() => actalogStore.config)
+const actalogForm = ref({
+  url: "", email: "", password: "", weight_unit: "kg",
+  sync_interval_hours: 24, sync_enabled: false,
+})
+const showPw = ref(false)
+const actalogSyncing = ref(false)
+const actalogMsg = ref("")
+const actalogMsgOk = ref(true)
+
+async function _loadActalogConfig() {
+  await actalogStore.fetchConfig()
+  if (actalogStore.config) {
+    actalogForm.value.url = actalogStore.config.url ?? ""
+    actalogForm.value.email = actalogStore.config.email ?? ""
+    actalogForm.value.weight_unit = actalogStore.config.weight_unit ?? "kg"
+    actalogForm.value.sync_interval_hours = actalogStore.config.sync_interval_hours ?? 24
+    actalogForm.value.sync_enabled = actalogStore.config.sync_enabled
+  }
+  actalogLoading.value = false
+}
+
+async function saveActalog() {
+  await actalogStore.saveConfig(actalogForm.value)
+  actalogMsg.value = "Saved."
+  actalogMsgOk.value = true
+}
+
+async function testActalogConnection() {
+  actalogMsg.value = ""
+  try {
+    await api.post("/admin/actalog/test-connection", null, {
+      params: {
+        url: actalogForm.value.url,
+        email: actalogForm.value.email,
+        password: actalogForm.value.password,
+      },
+    })
+    actalogMsg.value = "Connection successful."
+    actalogMsgOk.value = true
+  } catch (e: any) {
+    actalogMsg.value = `Connection failed: ${e.response?.data?.detail ?? e.message}`
+    actalogMsgOk.value = false
+  }
+}
+
+async function syncActalog() {
+  actalogSyncing.value = true
+  actalogMsg.value = ""
+  try {
+    const counts = await actalogStore.triggerSync()
+    actalogMsg.value = `Sync complete: ${counts.workouts} workouts, ${counts.prs} PRs.`
+    actalogMsgOk.value = true
+    await actalogStore.fetchConfig()
+  } catch (e: any) {
+    actalogMsg.value = `Sync failed: ${e.message}`
+    actalogMsgOk.value = false
+  } finally {
+    actalogSyncing.value = false
   }
 }
 </script>
@@ -383,4 +498,24 @@ th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; 
 .error-msg { color: #DC2626; }
 .no-errors { font-size: 0.82rem; color: #16A34A; font-weight: 600; }
 .upload-error { margin-top: 12px; padding: 10px 14px; background: #FEF2F2; border-radius: 8px; color: #DC2626; font-size: 0.83rem; }
+
+/* Actalog tab */
+.actalog-panel { padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }
+.field-row { display: flex; align-items: center; gap: 12px; }
+.field-row label { min-width: 160px; font-size: 0.85rem; font-weight: 600; color: var(--text); }
+.input-sm { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; background: var(--bg); color: var(--text); min-width: 260px; font-family: inherit; }
+.input-sm:focus { outline: none; border-color: var(--accent); }
+.select-sm { padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; background: var(--bg); color: var(--text); font-family: inherit; }
+.link-btn { background: none; border: none; color: var(--accent); font-size: 0.8rem; cursor: pointer; padding: 0 4px; font-family: inherit; }
+.link-btn:hover { text-decoration: underline; }
+.action-row { display: flex; gap: 10px; margin-top: 6px; }
+.btn-primary { padding: 7px 20px; background: var(--accent); color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; transition: background 0.15s; font-family: inherit; }
+.btn-primary:hover { opacity: 0.9; }
+.btn-secondary { padding: 7px 16px; background: transparent; color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 0.85rem; cursor: pointer; transition: border-color 0.15s; font-family: inherit; }
+.btn-secondary:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.status-msg { margin-top: 6px; font-size: 0.83rem; padding: 6px 10px; border-radius: 6px; }
+.status-msg.ok { background: #F0FDF4; color: #16A34A; }
+.status-msg.err { background: #FEF2F2; color: #DC2626; }
+.muted { color: var(--muted); }
 </style>
