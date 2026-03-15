@@ -176,7 +176,15 @@ class ActalogSync:
                 max_reps=pr.get("best_reps"),
                 best_time_s=best_time_s,
                 workout_id=best_workout_row[0] if best_workout_row else None,
-                workout_date=_parse_dt(str(best_workout_row[1])) if best_workout_row else _parse_dt(pr.get("last_pr_date")),
+                workout_date=(
+                    _parse_dt(
+                        best_workout_row[1].isoformat()
+                        if isinstance(best_workout_row[1], datetime)
+                        else str(best_workout_row[1])
+                    )
+                    if best_workout_row and best_workout_row[1] is not None
+                    else _parse_dt(pr.get("last_pr_date"))
+                ),
             ))
 
     async def run(self, client: ActalogClient, sync_log: SyncLogger) -> dict:
@@ -210,5 +218,8 @@ class ActalogSync:
             sync_log.fail(str(exc))
             raise
 
-        sync_log.success()
+        if counts["workouts"] == 0 and counts["errors"] > 0:
+            sync_log.fail(f"All {counts['errors']} workouts failed to sync")
+        else:
+            sync_log.success()
         return counts

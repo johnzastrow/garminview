@@ -82,3 +82,11 @@ def test_pr_aggregation(engine, session):
     assert pr.max_weight_kg == 100.0
     # best_time_s derived from workout_movements — movement has time=None so NULL
     assert pr.best_time_s is None
+
+
+def test_to_kg_none_returns_none(engine, session):
+    """_to_kg must return None for None input, regardless of weight_unit."""
+    sync_kg = ActalogSync(session, weight_unit="kg")
+    sync_lbs = ActalogSync(session, weight_unit="lbs")
+    assert sync_kg._to_kg(None) is None
+    assert sync_lbs._to_kg(None) is None
