@@ -17,6 +17,7 @@ const routes = [
   { path: "/calories", component: () => import("@/views/CaloriesDashboard.vue") },
   { path: "/intensity", component: () => import("@/views/IntensityMinutesDashboard.vue") },
   { path: "/nutrition", component: () => import("@/views/NutritionDashboard.vue") },
+  { path: "/actalog", component: () => import("@/views/ActalogDashboard.vue") },
   { path: "/profile", component: () => import("@/views/AthleteProfile.vue") },
   { path: "/admin", component: () => import("@/views/Admin.vue") },
 ]
