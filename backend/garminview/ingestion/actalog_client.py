@@ -1,9 +1,9 @@
 from __future__ import annotations
 import httpx
 from tenacity import retry, retry_if_exception, wait_exponential, stop_after_attempt
-import logging
+from garminview.core.logging import get_logger
 
-logger = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 LBS_TO_KG = 0.453592
 
@@ -58,7 +58,10 @@ class ActalogClient:
                 timeout=15,
             )
             r.raise_for_status()
-            return r.json()["access_token"]
+            data = r.json()
+            if "refresh_token" in data:
+                self.refresh_token = data["refresh_token"]
+            return data["access_token"]
 
     async def authenticate(self) -> str:
         """Return a valid access token, refreshing or logging in as needed."""
@@ -67,7 +70,7 @@ class ActalogClient:
                 self._access_token = await self._refresh()
                 return self._access_token
             except Exception:
-                logger.warning("Actalog token refresh failed; falling back to login")
+                log.warning("actalog_refresh_failed", reason="falling back to login")
         self._access_token = await self._login()
         return self._access_token
 
@@ -77,26 +80,27 @@ class ActalogClient:
     # ── Data fetching ──────────────────────────────────────────────────
 
     @_retry
+    async def _get_page(self, url: str, params: dict) -> list[dict]:
+        async with httpx.AsyncClient() as http:
+            r = await http.get(url, headers=self._auth_headers(), params=params, timeout=30)
+            r.raise_for_status()
+            return r.json()
+
     async def list_workouts(self, page_size: int = 100) -> list[dict]:
         """Fetch all workout list entries via pagination."""
-        results = []
+        results: list[dict] = []
         page = 1
-        async with httpx.AsyncClient() as http:
-            while True:
-                r = await http.get(
-                    f"{self.base_url}/api/workouts",
-                    headers=self._auth_headers(),
-                    params={"page": page, "page_size": page_size},
-                    timeout=30,
-                )
-                r.raise_for_status()
-                batch = r.json()
-                if not batch:
-                    break
-                results.extend(batch)
-                if len(batch) < page_size:
-                    break
-                page += 1
+        while True:
+            batch = await self._get_page(
+                f"{self.base_url}/api/workouts",
+                {"page": page, "page_size": page_size},
+            )
+            if not batch:
+                break
+            results.extend(batch)
+            if len(batch) < page_size:
+                break
+            page += 1
         return results
 
     @_retry
