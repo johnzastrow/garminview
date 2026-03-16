@@ -63,12 +63,13 @@ class ActalogSync:
     def _upsert_workout(self, detail: dict) -> None:
         """Upsert one full workout including embedded movements and WODs."""
         wid = detail["id"]
-        duration = detail.get("duration") or detail.get("total_time_s")
+        duration = (detail.get("total_time") or detail.get("duration")
+                    or detail.get("total_time_s"))
 
         self._upsert(ActalogWorkout, "id", wid, {
-            "workout_date": _parse_dt(detail.get("date")),
-            "workout_name": detail.get("name"),
-            "workout_type": detail.get("type"),
+            "workout_date": _parse_dt(detail.get("workout_date") or detail.get("date")),
+            "workout_name": detail.get("workout_name") or detail.get("name"),
+            "workout_type": detail.get("workout_type") or detail.get("type"),
             "total_time_s": duration,
             "notes": detail.get("notes"),
             "synced_at": datetime.now(timezone.utc).replace(tzinfo=None),

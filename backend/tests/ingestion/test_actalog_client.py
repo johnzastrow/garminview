@@ -10,7 +10,7 @@ async def test_login_sends_remember_me():
     mock_response = MagicMock()
     mock_response.status_code = 200
     mock_response.json.return_value = {
-        "access_token": "acc123",
+        "token": "acc123",
         "refresh_token": "ref456",
     }
     mock_response.raise_for_status = MagicMock()
@@ -19,7 +19,7 @@ async def test_login_sends_remember_me():
         token = await client._login()
         call_json = mock_post.call_args.kwargs.get("json") or mock_post.call_args.args[1]
         assert call_json.get("remember_me") is True
-        assert token == "acc123"
+        assert token == "acc123"  # value from mocked "token" key
         assert client.refresh_token == "ref456"
 
 
@@ -29,12 +29,12 @@ async def test_refresh_returns_access_token():
                            refresh_token="old_ref")
     mock_response = MagicMock()
     mock_response.status_code = 200
-    mock_response.json.return_value = {"access_token": "new_acc"}
+    mock_response.json.return_value = {"token": "new_acc"}
     mock_response.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.post", new_callable=AsyncMock, return_value=mock_response):
         token = await client._refresh()
-        assert token == "new_acc"
+        assert token == "new_acc"  # value from mocked "token" key
 
 
 @pytest.mark.asyncio
@@ -68,14 +68,47 @@ async def test_list_workouts_paginates():
 
     page1 = MagicMock()
     page1.status_code = 200
-    page1.json.return_value = [{"id": 1}, {"id": 2}]
+    page1.json.return_value = {"workouts": [{"id": 1}, {"id": 2}], "limit": 2, "offset": 0}
     page1.raise_for_status = MagicMock()
 
     page2 = MagicMock()
     page2.status_code = 200
-    page2.json.return_value = []
+    page2.json.return_value = {"workouts": [], "limit": 2, "offset": 2}
     page2.raise_for_status = MagicMock()
 
     with patch("httpx.AsyncClient.get", new_callable=AsyncMock, side_effect=[page1, page2]):
         workouts = await client.list_workouts()
         assert len(workouts) == 2
+
+
+@pytest.mark.asyncio
+async def test_list_pr_movements_unwraps_envelope():
+    """Should extract list from a wrapped dict response."""
+    client = ActalogClient(base_url="https://test.example", email="u@x.com", password="pw")
+    client._access_token = "tok"
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"pr_movements": [{"movement_id": 1}, {"movement_id": 2}]}
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        prs = await client.list_pr_movements()
+        assert len(prs) == 2
+        assert prs[0]["movement_id"] == 1
+
+
+@pytest.mark.asyncio
+async def test_list_pr_movements_bare_list():
+    """Should handle a bare list response without unwrapping."""
+    client = ActalogClient(base_url="https://test.example", email="u@x.com", password="pw")
+    client._access_token = "tok"
+
+    mock_response = MagicMock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = [{"movement_id": 3}]
+    mock_response.raise_for_status = MagicMock()
+
+    with patch("httpx.AsyncClient.get", new_callable=AsyncMock, return_value=mock_response):
+        prs = await client.list_pr_movements()
+        assert len(prs) == 1

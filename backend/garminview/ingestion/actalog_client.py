@@ -48,7 +48,7 @@ class ActalogClient:
             r.raise_for_status()
             data = r.json()
             self.refresh_token = data.get("refresh_token")
-            return data["access_token"]
+            return data["token"]
 
     async def _refresh(self) -> str:
         async with httpx.AsyncClient() as http:
@@ -61,7 +61,7 @@ class ActalogClient:
             data = r.json()
             if "refresh_token" in data:
                 self.refresh_token = data["refresh_token"]
-            return data["access_token"]
+            return data["token"]
 
     async def authenticate(self) -> str:
         """Return a valid access token, refreshing or logging in as needed."""
@@ -80,27 +80,28 @@ class ActalogClient:
     # ── Data fetching ──────────────────────────────────────────────────
 
     @_retry
-    async def _get_page(self, url: str, params: dict) -> list[dict]:
+    async def _get_page(self, url: str, params: dict) -> dict:
         async with httpx.AsyncClient() as http:
             r = await http.get(url, headers=self._auth_headers(), params=params, timeout=30)
             r.raise_for_status()
             return r.json()
 
-    async def list_workouts(self, page_size: int = 100) -> list[dict]:
-        """Fetch all workout list entries via pagination."""
+    async def list_workouts(self, limit: int = 100) -> list[dict]:
+        """Fetch all workout list entries via offset pagination."""
         results: list[dict] = []
-        page = 1
+        offset = 0
         while True:
-            batch = await self._get_page(
+            data = await self._get_page(
                 f"{self.base_url}/api/workouts",
-                {"page": page, "page_size": page_size},
+                {"limit": limit, "offset": offset},
             )
+            batch = data.get("workouts", [])
             if not batch:
                 break
             results.extend(batch)
-            if len(batch) < page_size:
+            if len(batch) < limit:
                 break
-            page += 1
+            offset += limit
         return results
 
     @_retry
@@ -125,7 +126,14 @@ class ActalogClient:
                 timeout=15,
             )
             r.raise_for_status()
-            return r.json()
+            data = r.json()
+            if isinstance(data, list):
+                return data
+            # Unwrap envelope dict — find the first list value
+            for v in data.values():
+                if isinstance(v, list):
+                    return v
+            return []
 
     def convert_weight(self, raw: float | None) -> float | None:
         """Convert raw weight value to kg based on configured unit."""

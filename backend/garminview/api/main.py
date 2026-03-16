@@ -65,3 +65,6 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         return {"status": "ok", "version": "0.4.0"}
 
     return app
+
+
+app = create_app()

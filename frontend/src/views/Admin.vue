@@ -351,21 +351,32 @@ const actalogMsg = ref("")
 const actalogMsgOk = ref(true)
 
 async function _loadActalogConfig() {
-  await actalogStore.fetchConfig()
-  if (actalogStore.config) {
-    actalogForm.value.url = actalogStore.config.url ?? ""
-    actalogForm.value.email = actalogStore.config.email ?? ""
-    actalogForm.value.weight_unit = actalogStore.config.weight_unit ?? "kg"
-    actalogForm.value.sync_interval_hours = actalogStore.config.sync_interval_hours ?? 24
-    actalogForm.value.sync_enabled = actalogStore.config.sync_enabled
+  try {
+    await actalogStore.fetchConfig()
+    if (actalogStore.config) {
+      actalogForm.value.url = actalogStore.config.url ?? ""
+      actalogForm.value.email = actalogStore.config.email ?? ""
+      actalogForm.value.weight_unit = actalogStore.config.weight_unit ?? "kg"
+      actalogForm.value.sync_interval_hours = actalogStore.config.sync_interval_hours ?? 24
+      actalogForm.value.sync_enabled = actalogStore.config.sync_enabled
+    }
+  } catch {
+    // backend unreachable — show form with defaults so user can still configure
+  } finally {
+    actalogLoading.value = false
   }
-  actalogLoading.value = false
 }
 
 async function saveActalog() {
-  await actalogStore.saveConfig(actalogForm.value)
-  actalogMsg.value = "Saved."
-  actalogMsgOk.value = true
+  actalogMsg.value = ""
+  try {
+    await actalogStore.saveConfig(actalogForm.value)
+    actalogMsg.value = "Saved."
+    actalogMsgOk.value = true
+  } catch (e: any) {
+    actalogMsg.value = `Save failed: ${e.response?.data?.detail ?? e.message}`
+    actalogMsgOk.value = false
+  }
 }
 
 async function testActalogConnection() {
@@ -395,7 +406,7 @@ async function syncActalog() {
     actalogMsgOk.value = true
     await actalogStore.fetchConfig()
   } catch (e: any) {
-    actalogMsg.value = `Sync failed: ${e.message}`
+    actalogMsg.value = `Sync failed: ${e.response?.data?.detail ?? e.message}`
     actalogMsgOk.value = false
   } finally {
     actalogSyncing.value = false
