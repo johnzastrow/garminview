@@ -16,7 +16,7 @@ use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, Data
 const store = useActalogStore()
 const dateRange = useDateRangeStore()
 
-const activeTab = ref<"workouts" | "movements" | "wods" | "prs" | "cross" | "calendar">("workouts")
+const activeTab = ref<"workouts" | "movements" | "wods" | "prs" | "cross" | "calendar" | "qa">("workouts")
 
 // ── Tab 1: Workouts ─────────────────────────────────────────────────
 const expandedWorkout = ref<number | null>(null)
@@ -240,6 +240,143 @@ const hrChartOption = computed(() => {
   }
 })
 
+// ── Tab 7: QA Review ─────────────────────────────────────────────────
+interface ParseRecord {
+  id: number
+  workout_id: number | null
+  workout_name: string | null
+  workout_date: string | null
+  content_class: string | null
+  parse_status: string | null
+  parsed_at: string | null
+  reviewed_at: string | null
+  error_message: string | null
+  llm_model: string | null
+  raw_notes: string | null
+  formatted_markdown: string | null
+  parsed_json: string | null
+}
+interface ParsedWod {
+  name: string
+  alt_name?: string | null
+  name_source?: string | null
+  regime?: string | null
+  score_type?: string | null
+  rpe?: number | null
+  intended_stimulus?: string | null
+  scaling_tiers?: {
+    rx?: { movement: string; reps?: number | null; sets?: number | null; weight_lbs?: number | null; notes?: string | null }[]
+    intermediate?: { movement: string; reps?: number | null; sets?: number | null; weight_lbs?: number | null; notes?: string | null }[]
+    foundations?: { movement: string; reps?: number | null; sets?: number | null; weight_lbs?: number | null; notes?: string | null }[]
+  }
+}
+
+const qaFilter = ref<"all" | "pending" | "approved" | "rejected" | "skipped">("pending")
+const qaRecords = ref<ParseRecord[]>([])
+const qaTotal = ref(0)
+const qaLoading = ref(false)
+const qaError = ref("")
+const qaSelected = ref<ParseRecord | null>(null)
+const qaEditMarkdown = ref("")
+const qaEditRaw = ref("")
+const qaActionMsg = ref("")
+const qaActionOk = ref(false)
+const qaActionBusy = ref(false)
+
+const qaParsedWods = computed((): ParsedWod[] => {
+  if (!qaSelected.value?.parsed_json) return []
+  try {
+    return JSON.parse(qaSelected.value.parsed_json).wods ?? []
+  } catch { return [] }
+})
+
+const qaPerformanceNotes = computed((): string | null => {
+  if (!qaSelected.value?.parsed_json) return null
+  try {
+    return JSON.parse(qaSelected.value.parsed_json).performance_notes ?? null
+  } catch { return null }
+})
+
+function qaSelectRecord(r: ParseRecord) {
+  qaSelected.value = r
+  qaEditMarkdown.value = r.formatted_markdown ?? ""
+  qaEditRaw.value = r.raw_notes ?? ""
+  qaActionMsg.value = ""
+}
+
+async function loadQaQueue() {
+  qaLoading.value = true
+  qaError.value = ""
+  try {
+    const params = qaFilter.value !== "all" ? `?status=${qaFilter.value}` : ""
+    const { data } = await api.get(`/admin/actalog/parser/queue${params}`)
+    qaRecords.value = data.items
+    qaTotal.value = data.total
+  } catch (e: any) {
+    qaError.value = e.response?.data?.detail ?? e.message
+  } finally {
+    qaLoading.value = false
+  }
+}
+
+async function qaApprove() {
+  if (!qaSelected.value) return
+  qaActionBusy.value = true
+  qaActionMsg.value = ""
+  try {
+    await api.post(`/admin/actalog/parser/approve/${qaSelected.value.id}`, {
+      formatted_markdown: qaEditMarkdown.value || null,
+    })
+    qaActionMsg.value = "Approved."
+    qaActionOk.value = true
+    await loadQaQueue()
+    qaSelected.value = null
+  } catch (e: any) {
+    qaActionMsg.value = e.response?.data?.detail ?? e.message
+    qaActionOk.value = false
+  } finally {
+    qaActionBusy.value = false
+  }
+}
+
+async function qaReject() {
+  if (!qaSelected.value) return
+  qaActionBusy.value = true
+  qaActionMsg.value = ""
+  try {
+    await api.post(`/admin/actalog/parser/reject/${qaSelected.value.id}`)
+    qaActionMsg.value = "Rejected."
+    qaActionOk.value = true
+    await loadQaQueue()
+    qaSelected.value = null
+  } catch (e: any) {
+    qaActionMsg.value = e.response?.data?.detail ?? e.message
+    qaActionOk.value = false
+  } finally {
+    qaActionBusy.value = false
+  }
+}
+
+async function qaReparse() {
+  if (!qaSelected.value?.workout_id) return
+  qaActionBusy.value = true
+  qaActionMsg.value = ""
+  try {
+    await api.post(`/admin/actalog/parser/reparse/${qaSelected.value.workout_id}`)
+    qaActionMsg.value = "Re-queued for parsing."
+    qaActionOk.value = true
+    await loadQaQueue()
+    qaSelected.value = null
+  } catch (e: any) {
+    qaActionMsg.value = e.response?.data?.detail ?? e.message
+    qaActionOk.value = false
+  } finally {
+    qaActionBusy.value = false
+  }
+}
+
+watch(qaFilter, loadQaQueue)
+
 // ── Lifecycle ────────────────────────────────────────────────────────
 onMounted(async () => {
   await store.fetchWorkouts(dateRange.startDate, dateRange.endDate)
@@ -264,10 +401,10 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 
     <!-- Tab Bar -->
     <div class="tab-bar">
-      <button v-for="tab in ['workouts','movements','wods','prs','cross','calendar']" :key="tab"
+      <button v-for="tab in ['workouts','movements','wods','prs','cross','calendar','qa']" :key="tab"
         :class="['tab-btn', { active: activeTab === tab }]"
-        @click="activeTab = tab as any">
-        {{ ({ workouts: 'Workouts', movements: 'Movements', wods: 'WODs', prs: 'Personal Records', cross: 'Cross-Reference', calendar: 'Calendar' } as Record<string,string>)[tab] }}
+        @click="activeTab = tab as any; if(tab==='qa') loadQaQueue()">
+        {{ ({ workouts: 'Workouts', movements: 'Movements', wods: 'WODs', prs: 'Personal Records', cross: 'Cross-Reference', calendar: 'Calendar', qa: 'QA Review' } as Record<string,string>)[tab] }}
       </button>
     </div>
 
@@ -488,6 +625,115 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
         <p v-else class="muted vitals-none">No duration recorded — heart rate window unavailable.</p>
       </div>
     </div>
+
+    <!-- ── Tab 7: QA Review ──────────────────────────────────────── -->
+    <div v-if="activeTab === 'qa'" class="tab-content">
+
+      <!-- Filter bar -->
+      <div class="qa-filter-bar">
+        <button v-for="f in ['pending','approved','rejected','skipped','all']" :key="f"
+          :class="['qa-filter-btn', { active: qaFilter === f }]"
+          @click="qaFilter = f as any">
+          {{ f.charAt(0).toUpperCase() + f.slice(1) }}
+        </button>
+        <span class="muted" style="margin-left:auto;font-size:0.83rem">{{ qaTotal }} records</span>
+      </div>
+
+      <div v-if="qaLoading" class="muted">Loading…</div>
+      <div v-if="qaError" class="err-msg">{{ qaError }}</div>
+
+      <!-- Record list -->
+      <table v-if="!qaLoading && qaRecords.length" class="data-table qa-list">
+        <thead>
+          <tr>
+            <th>Date</th><th>Workout</th><th>Class</th><th>Status</th><th>WODs</th><th>Model</th><th>Parsed</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="r in qaRecords" :key="r.id"
+            :class="['clickable', { 'qa-selected-row': qaSelected?.id === r.id }]"
+            @click="qaSelectRecord(r)">
+            <td>{{ r.workout_date ? r.workout_date.slice(0,10) : '—' }}</td>
+            <td>{{ r.workout_name ?? '—' }}</td>
+            <td><span :class="['qa-badge', `qa-class-${(r.content_class??'').toLowerCase()}`]">{{ r.content_class ?? '—' }}</span></td>
+            <td><span :class="['qa-badge', `qa-status-${(r.parse_status??'').toLowerCase()}`]">{{ r.parse_status ?? '—' }}</span></td>
+            <td>{{ r.parsed_json ? (JSON.parse(r.parsed_json).wods?.length ?? 0) : 0 }}</td>
+            <td class="muted">{{ r.llm_model ?? '—' }}</td>
+            <td class="muted">{{ r.parsed_at ? r.parsed_at.slice(0,16).replace('T',' ') : '—' }}</td>
+          </tr>
+        </tbody>
+      </table>
+      <div v-if="!qaLoading && !qaRecords.length" class="muted">No records for this filter.</div>
+
+      <!-- Three-column detail panel -->
+      <div v-if="qaSelected" class="qa-detail">
+        <div class="qa-detail-header">
+          <strong>{{ qaSelected.workout_name ?? 'Workout' }}</strong>
+          <span class="muted" style="margin-left:8px;font-size:0.83rem">{{ qaSelected.workout_date?.slice(0,10) }}</span>
+          <button class="qa-close-btn" @click="qaSelected = null">✕</button>
+        </div>
+
+        <div class="qa-three-col">
+
+          <!-- Column 1: Raw notes (read-only) -->
+          <div class="qa-col">
+            <div class="qa-col-label">Raw Notes <span class="muted">(original)</span></div>
+            <pre class="qa-raw">{{ qaSelected.raw_notes ?? '—' }}</pre>
+          </div>
+
+          <!-- Column 2: Structured WOD view -->
+          <div class="qa-col">
+            <div class="qa-col-label">Structured WOD View <span class="muted">(model output)</span></div>
+            <div v-if="qaParsedWods.length === 0" class="muted">No WODs extracted.</div>
+            <div v-for="(wod, wi) in qaParsedWods" :key="wi" class="qa-wod-card">
+              <div class="qa-wod-name">
+                {{ wod.name }}
+                <span v-if="wod.alt_name" class="qa-alt-name">/ {{ wod.alt_name }}</span>
+                <span v-if="wod.name_source" class="qa-source-badge">{{ wod.name_source }}</span>
+              </div>
+              <div class="qa-wod-meta">
+                <span v-if="wod.regime" class="qa-meta-chip">{{ wod.regime }}</span>
+                <span v-if="wod.score_type" class="qa-meta-chip">Score: {{ wod.score_type }}</span>
+                <span v-if="wod.rpe" class="qa-meta-chip">RPE {{ wod.rpe }}</span>
+              </div>
+              <div v-if="wod.intended_stimulus" class="qa-stimulus">{{ wod.intended_stimulus }}</div>
+              <template v-for="tier in ['rx','intermediate','foundations']" :key="tier">
+                <template v-if="(wod.scaling_tiers as any)?.[tier]?.length">
+                  <div class="qa-tier-label">{{ tier.toUpperCase() }}</div>
+                  <div v-for="(mv, mi) in (wod.scaling_tiers as any)[tier]" :key="mi" class="qa-movement">
+                    <span class="qa-mv-name">{{ mv.movement }}</span>
+                    <span v-if="mv.sets" class="qa-mv-detail">{{ mv.sets }} sets</span>
+                    <span v-if="mv.reps" class="qa-mv-detail">× {{ mv.reps }}</span>
+                    <span v-if="mv.weight_lbs" class="qa-mv-detail">@ {{ mv.weight_lbs }}#</span>
+                    <span v-if="mv.notes" class="qa-mv-note">{{ mv.notes }}</span>
+                  </div>
+                </template>
+              </template>
+            </div>
+            <div v-if="qaPerformanceNotes" class="qa-perf-notes">
+              <div class="qa-col-label" style="margin-top:12px">Performance Notes</div>
+              <p class="qa-perf-text">{{ qaPerformanceNotes }}</p>
+            </div>
+            <div v-if="qaSelected.error_message" class="err-msg" style="margin-top:8px">{{ qaSelected.error_message }}</div>
+          </div>
+
+          <!-- Column 3: Editable Markdown -->
+          <div class="qa-col">
+            <div class="qa-col-label">Markdown Preview <span class="muted">(edit before approving)</span></div>
+            <textarea v-model="qaEditMarkdown" class="qa-md-editor" placeholder="No markdown generated" />
+          </div>
+
+        </div>
+
+        <!-- Action row -->
+        <div class="qa-actions">
+          <button class="btn-primary" :disabled="qaActionBusy" @click="qaApprove">Approve</button>
+          <button class="btn-secondary" :disabled="qaActionBusy" @click="qaReparse">Re-parse</button>
+          <button class="btn-danger" :disabled="qaActionBusy" @click="qaReject">Reject</button>
+          <span v-if="qaActionMsg" :class="qaActionOk ? 'qa-ok-msg' : 'err-msg'">{{ qaActionMsg }}</span>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -551,4 +797,54 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .vitals-meta { display: flex; gap: 20px; font-size: 0.83rem; color: var(--muted); margin-bottom: 12px; }
 .vitals-none { font-style: italic; margin-top: 12px; }
 .err-msg { color: #EF4444; font-size: 0.83rem; padding: 8px 0; }
+
+/* QA Review tab */
+.qa-filter-bar { display: flex; gap: 6px; align-items: center; margin-bottom: 16px; }
+.qa-filter-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.83rem; }
+.qa-filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+.qa-list td, .qa-list th { font-size: 0.83rem; }
+.qa-selected-row { background: var(--accent-light) !important; }
+.qa-badge { padding: 2px 7px; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+.qa-class-workout   { background: #dcfce7; color: #166534; }
+.qa-class-mixed     { background: #fef9c3; color: #854d0e; }
+.qa-class-performance_only { background: #dbeafe; color: #1e40af; }
+.qa-class-skip      { background: var(--surface); color: var(--muted); }
+.qa-status-pending  { background: #fef9c3; color: #854d0e; }
+.qa-status-approved { background: #dcfce7; color: #166534; }
+.qa-status-rejected { background: #fee2e2; color: #991b1b; }
+.qa-status-skipped  { background: var(--surface); color: var(--muted); }
+
+.qa-detail { margin-top: 20px; border: 1px solid var(--border); border-radius: 12px; padding: 16px; background: var(--surface); }
+.qa-detail-header { display: flex; align-items: center; margin-bottom: 14px; font-size: 1rem; }
+.qa-close-btn { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; }
+
+.qa-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: start; }
+.qa-col { display: flex; flex-direction: column; gap: 8px; }
+.qa-col-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.qa-raw { font-size: 0.78rem; white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 480px; overflow-y: auto; color: var(--text); font-family: monospace; }
+
+.qa-wod-card { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; }
+.qa-wod-name { font-weight: 700; font-size: 0.95rem; color: var(--text); margin-bottom: 6px; }
+.qa-alt-name { font-weight: 400; color: var(--muted); font-size: 0.85rem; }
+.qa-source-badge { margin-left: 6px; font-size: 0.7rem; padding: 1px 5px; border-radius: 4px; background: var(--accent-light); color: var(--accent); font-weight: 600; }
+.qa-wod-meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+.qa-meta-chip { font-size: 0.75rem; padding: 2px 7px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+.qa-stimulus { font-size: 0.78rem; color: var(--muted); font-style: italic; margin-bottom: 6px; }
+.qa-tier-label { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--accent); margin: 6px 0 3px; }
+.qa-movement { display: flex; gap: 6px; align-items: baseline; font-size: 0.82rem; padding: 2px 0; }
+.qa-mv-name { color: var(--text); font-weight: 500; }
+.qa-mv-detail { color: var(--muted); }
+.qa-mv-note { font-style: italic; color: var(--muted); font-size: 0.78rem; }
+.qa-perf-text { font-size: 0.83rem; color: var(--text); background: var(--bg); border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 0 6px 6px 0; }
+
+.qa-md-editor { width: 100%; min-height: 420px; font-family: monospace; font-size: 0.82rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; resize: vertical; line-height: 1.5; }
+
+.qa-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.btn-primary { padding: 7px 18px; background: var(--accent); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-secondary { padding: 7px 18px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
+.btn-secondary:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-danger { padding: 7px 18px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 6px; cursor: pointer; font-weight: 600; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.qa-ok-msg { color: #166534; font-size: 0.83rem; }
 </style>
