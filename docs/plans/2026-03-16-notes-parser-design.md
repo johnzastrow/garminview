@@ -264,43 +264,111 @@ A single LLM call returns both structured data and formatted text:
 
 ---
 
-## Model Selection
+## Model Selection and Testing
 
-**Runtime:** CPU-only (no GPU passthrough required). Designed for 2–6 GB RAM for VMs;
-development machine has 32 GB system RAM.
+### Hardware context
 
-**Inference backend:** [Ollama](https://ollama.com) — manages GGUF models, exposes a
-local REST API, uses llama.cpp under the hood.
+| | Spec |
+|---|---|
+| Development machine | 32 GB system RAM, AMD RX 560 (2 GB VRAM) |
+| Target VM (production) | CPU-only, 2–6 GB RAM budget |
+| GPU viable? | No — RX 560 is Polaris (2016), no ROCm support in Ollama; 2 GB VRAM too small for 7B anyway |
 
-**Tested 2026-03-16 against real notes. `qwen2.5:7b` is the required model.**
+**Inference backend:** [Ollama](https://ollama.com) — manages GGUF quantized models,
+exposes a local REST API, uses llama.cpp under the hood. Already installed on dev machine.
 
 ```bash
-ollama pull qwen2.5:7b
+ollama pull qwen2.5:7b   # required model
 ```
 
-| Model | RAM | CPU time (complex note) | Structured output | Verdict |
-|---|---|---|---|---|
-| `qwen2.5:3b` | ~2.0 GB | ~47s | Poor on multi-tier | ❌ Fails — misreads scaling tiers as separate WODs |
-| `qwen2.5:7b` | ~4.5 GB | ~187s | Excellent | ✅ **Required minimum** |
-| `llama3.1:8b` | ~4.7 GB | untested | Good | Untested |
+---
 
-### Test results (2026-03-16)
+### Model comparison (tested 2026-03-16)
 
-| Note | 3B result | 7B result |
+Four real notes were used as test cases covering every content class:
+
+| ID | Workout name | Note content | Length |
+|---|---|---|---|
+| 199 | Even escence Quick Log | "great!" | 6 chars |
+| 191 | Thanksgiving turducken | "Not good. Took a lot of time off" | 32 chars |
+| 190 | Turducken | Full WOD — For Time, 3 scaling tiers, ladder structure | 493 chars |
+| 205 | CFY Quick Log Dec 12 | Two segments: Landmine Press (strength) + The Present Tens (AMRAP, 3 tiers) | 904 chars |
+
+#### Round 1 — initial prompt (no few-shot example)
+
+| Note | `qwen2.5:3b` (~47s) | `qwen2.5:7b` (~187s) |
 |---|---|---|
-| Trivial ("great!") | ✅ SKIP | ✅ SKIP |
-| Performance only ("Not good...") | ✅ PERFORMANCE_ONLY | ✅ PERFORMANCE_ONLY |
-| Single WOD with 3 tiers (Turducken) | ✅ Correct | ✅ Correct |
-| Multi-WOD (Landmine Press + The Present Tens) | ❌ Confused tiers as WODs | ⚠️ Correct tiers, missed Landmine Press segment |
+| Trivial ("great!") | ✅ `SKIP` | ✅ `SKIP` |
+| Performance only | ✅ `PERFORMANCE_ONLY`, correct text | ✅ `PERFORMANCE_ONLY`, correct text |
+| Turducken (single WOD, 3 tiers) | ✅ 1 WOD, 3 movements per tier | ✅ 1 WOD, 3 movements per tier |
+| Landmine Press + The Present Tens | ❌ 3 WODs — confused RX/Intermediate/Foundations as separate WODs, movements wrong | ⚠️ 1 WOD (The Present Tens only) — missed Landmine Press strength segment entirely; scaling tiers correct |
 
-### Prompt fix confirmed (2026-03-16)
+**Conclusion after round 1:** 3B is not viable — it fundamentally misunderstands the
+tier/WOD distinction on complex notes. 7B understands tiers but missed the separate
+strength segment.
 
-Adding an explicit rule and a single few-shot example to the prompt fixed multi-segment
-detection. The model now correctly produces 2 WODs (STRENGTH + AMRAP) with all three
-scaling tiers populated on the conditioning piece.
+#### Round 2 — improved prompt (added explicit rule + few-shot example)
 
-At 61 records growing ~5×/week, ~230s/record is acceptable for a nightly batch job
-(~5 new notes ≈ 20 minutes total). Not suitable for real-time/on-demand parsing.
+The prompt was strengthened with:
+1. An explicit rule: *"Scaling tiers (RX/INTERMEDIATE/FOUNDATIONS) are variants of the SAME WOD — they go inside `scaling_tiers`, NOT as separate `wods` entries."*
+2. A few-shot example showing a strength piece + conditioning piece as two distinct `wods` entries.
+
+| Note | `qwen2.5:7b` (~232s) |
+|---|---|
+| Landmine Press + The Present Tens | ✅ 2 WODs correctly split: `STRENGTH` (Landmine Press, score=WEIGHT, RPE=6) + `AMRAP` (The Present Tens, score=ROUNDS_REPS, RPE=8, all 3 tiers populated) |
+
+**Remaining gap:** Landmine Press had empty `intermediate` and `foundations` tiers.
+The prompt rule to copy RX to other tiers when only one is described needs reinforcement.
+This is a prompt wording issue, not a model capability issue.
+
+#### Markdown output quality (round 2, 7B)
+
+```markdown
+# Workout
+## Landmine Press
+Score Weight — 4 Sets — RPE: 6
+
+## The Present Tens
+### RX
+2 Sets AMRAP x 8 MINUTES
+- 10 Strict Pull-Ups
+- 10 Ring Dips
+- 10 Alt. DB Farmer Box Step-Ups (35/50#)(20/24")
+  -Rest 1:30 b/t Sets-  RPE: 8, Intended Stimulus: 4-6 Rounds
+
+### INTERMEDIATE
+- 10 Vertical Ring Rows / 10 Dips / 10 Alt. DB Farmer Box Step-Ups (20/35#)
+
+### FOUNDATIONS
+- 10 Ring Rows / 10 Dips / 10 Alt. DB Farmer Box Step-Ups (up to 20#)
+```
+
+Clean, readable, correct structure. Minor formatting polish possible via prompt.
+
+---
+
+### Performance characteristics
+
+| Note type | Typical time (7B, CPU) |
+|---|---|
+| SKIP / PERFORMANCE_ONLY | < 5s |
+| Single WOD, 1–3 tiers | ~60–90s |
+| Multi-WOD, complex tiers | ~190–240s |
+
+At 5 new notes/week, worst-case batch time is ~20 minutes. Acceptable for a nightly
+scheduled job. Not suitable for real-time on-demand parsing from the UI.
+
+---
+
+### Model verdict
+
+| Model | RAM | Verdict |
+|---|---|---|
+| `qwen2.5:3b` | ~2.0 GB | ❌ Fails on multi-tier WODs |
+| `qwen2.5:7b` | ~4.5 GB | ✅ **Required minimum — use this** |
+| `llama3.1:8b` | ~4.7 GB | Untested |
+
+---
 
 ### Prompt storage in production
 
