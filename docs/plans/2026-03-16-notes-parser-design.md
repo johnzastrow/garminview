@@ -283,6 +283,45 @@ ollama pull qwen2.5:7b   # required model
 
 ---
 
+### Inference configuration used in tests
+
+All tests called the Ollama `/api/generate` endpoint with the following parameters:
+
+```python
+httpx.post("http://localhost:11434/api/generate", json={
+    "model": "qwen2.5:3b",   # or "qwen2.5:7b"
+    "system": SYSTEM_PROMPT,
+    "prompt": note_text,
+    "stream": False,
+    "options": {"temperature": 0.1}
+}, timeout=300)
+```
+
+| Parameter | Value | Reason |
+|---|---|---|
+| `temperature` | 0.1 | Near-deterministic output — structured JSON extraction should not be creative |
+| `stream` | False | Batch job; simpler to wait for full response than stream tokens |
+| `timeout` | 300s | Complex notes take up to ~240s on CPU |
+| `system` | SYSTEM_PROMPT | Full extraction instructions and few-shot examples |
+| `prompt` | raw note text | No additional wrapping needed |
+
+The response is `resp.json()["response"]` — a raw string that must be `json.loads()`
+parsed and Pydantic-validated before use.
+
+---
+
+### Models tested
+
+| Model tag | GGUF quant | RAM usage | Ollama ID |
+|---|---|---|---|
+| `qwen2.5:3b` | Q4_K_M (default) | ~2.0 GB | `357c53fb659c` |
+| `qwen2.5:7b` | Q4_K_M (default) | ~4.5 GB | pulled 2026-03-16 |
+
+Both pulled via `ollama pull <tag>` with no additional flags — Ollama selects Q4_K_M
+by default for these models, which is the best balance of quality and RAM at this size.
+
+---
+
 ### Model comparison (tested 2026-03-16)
 
 Four real notes were used as test cases covering every content class:
@@ -293,6 +332,44 @@ Four real notes were used as test cases covering every content class:
 | 191 | Thanksgiving turducken | "Not good. Took a lot of time off" | 32 chars |
 | 190 | Turducken | Full WOD — For Time, 3 scaling tiers, ladder structure | 493 chars |
 | 205 | CFY Quick Log Dec 12 | Two segments: Landmine Press (strength) + The Present Tens (AMRAP, 3 tiers) | 904 chars |
+
+#### Round 1 system prompt
+
+```
+You are a CrossFit/fitness workout parser. Given raw notes from a workout log,
+extract structured data and return ONLY valid JSON — no commentary, no markdown fences.
+
+Return this exact schema:
+{
+  "content_class": "WORKOUT" | "MIXED" | "PERFORMANCE_ONLY" | "SKIP",
+  "performance_notes": "<personal notes if any, else null>",
+  "wods": [
+    {
+      "name": "<primary WOD name>",
+      "alt_name": "<secondary/local gym name if present, else null>",
+      "name_source": "PRVN" | "GYM" | "UNKNOWN",
+      "regime": "FOR_TIME" | "AMRAP" | "EMOM" | "STRENGTH" | "CHIPPER" | "OTHER",
+      "score_type": "TIME" | "ROUNDS_REPS" | "WEIGHT" | "REPS" | "CALORIES" | "NONE",
+      "rpe": <integer 1-10 or null>,
+      "intended_stimulus": "<text or null>",
+      "scaling_tiers": {
+        "rx": [{"movement": "<name>", "reps": <int or null>, "sets": <int or null>,
+                "weight_lbs": <float or null>, "notes": "<text or null>"}],
+        "intermediate": [...],
+        "foundations": [...]
+      }
+    }
+  ],
+  "formatted_markdown": "<full Markdown formatted version of the workout>"
+}
+
+Rules:
+- If trivially short or no workout content: content_class=SKIP, empty wods array.
+- If only personal feelings/performance with no workout description: content_class=PERFORMANCE_ONLY.
+- Multiple distinct segments (e.g. strength + conditioning): separate wods entries.
+- Always populate all three scaling tiers. If only RX described, copy with note "same as RX".
+- Personal performance observations go in performance_notes only.
+```
 
 #### Round 1 — initial prompt (no few-shot example)
 
@@ -309,9 +386,22 @@ strength segment.
 
 #### Round 2 — improved prompt (added explicit rule + few-shot example)
 
-The prompt was strengthened with:
-1. An explicit rule: *"Scaling tiers (RX/INTERMEDIATE/FOUNDATIONS) are variants of the SAME WOD — they go inside `scaling_tiers`, NOT as separate `wods` entries."*
-2. A few-shot example showing a strength piece + conditioning piece as two distinct `wods` entries.
+Two additions to the rules section (everything else identical to round 1):
+
+```
+- IMPORTANT — Multiple segments: A note often contains two SEPARATE workout pieces.
+  A strength/lifting piece (Score is Weight, sets x reps of one movement) is ALWAYS
+  a separate WOD entry from a conditioning piece (AMRAP, For Time, EMOM). Create one
+  wods entry per distinct segment, not one per scaling tier.
+- Scaling tiers (RX / INTERMEDIATE / FOUNDATIONS) are variants of the SAME WOD —
+  they go inside scaling_tiers, NOT as separate wods entries.
+
+Few-shot example of multi-segment detection:
+Input: "Back Squat 5x5 (Score is Weight) RPE: 7\n\nFran\nFor Time 21-15-9\n
+        Thrusters (95/135#)\nPull-Ups\n(Score is Time)"
+Output wods: two entries — one STRENGTH wod named "Back Squat" and one FOR_TIME
+             wod named "Fran"
+```
 
 | Note | `qwen2.5:7b` (~232s) |
 |---|---|
