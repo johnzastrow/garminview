@@ -14,6 +14,8 @@ class ActalogWorkout(Base):
     workout_type: Mapped[str | None] = mapped_column(String(32))
     total_time_s: Mapped[int | None] = mapped_column(Integer)
     notes: Mapped[str | None] = mapped_column(Text)
+    formatted_notes: Mapped[str | None] = mapped_column(Text)
+    performance_notes: Mapped[str | None] = mapped_column(Text)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
@@ -28,6 +30,8 @@ class ActalogWod(Base):
     __tablename__ = "actalog_wods"
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     name: Mapped[str | None] = mapped_column(Text)
+    alt_name: Mapped[str | None] = mapped_column(Text)
+    name_source: Mapped[str | None] = mapped_column(String(16))  # PRVN | GYM | UNKNOWN
     regime: Mapped[str | None] = mapped_column(String(64))
     score_type: Mapped[str | None] = mapped_column(String(32))
 
@@ -60,6 +64,20 @@ class ActalogWorkoutWod(Base):
     rpe: Mapped[int | None] = mapped_column(Integer)
     is_pr: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     order_index: Mapped[int | None] = mapped_column(Integer)
+
+
+class ActalogNoteParse(Base):
+    __tablename__ = "actalog_note_parses"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    workout_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("actalog_workouts.id"))
+    content_class: Mapped[str | None] = mapped_column(String(32))   # WORKOUT | MIXED | PERFORMANCE_ONLY | SKIP
+    raw_notes: Mapped[str | None] = mapped_column(Text)
+    parsed_json: Mapped[str | None] = mapped_column(Text)
+    parse_status: Mapped[str | None] = mapped_column(String(16))    # pending | approved | rejected | sent
+    parsed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    llm_model: Mapped[str | None] = mapped_column(String(64))
 
 
 class ActalogPersonalRecord(Base):
