@@ -129,19 +129,62 @@ Controls the LLM backend and parse settings:
 
 ### Actalog dashboard — QA Review tab (new tab)
 
-Where the user inspects and approves/rejects parsed records:
+**Correction strategy: Option A + C**
+- **A — Edit Markdown directly:** User can edit `formatted_markdown` in a textarea
+  before approving. This is what gets written to `notes` in Actalog.
+- **C — Re-parse from source:** User can edit the raw note text and re-submit to the
+  model. Useful when the structured data (movements, tiers) is badly wrong.
+- **Option B (structured form editor)** is deferred. If A+C proves insufficient for
+  correcting structural errors (wrong WOD names, bad movements), a form-based JSON
+  editor will be added in a later iteration.
 
-| Element | Purpose |
+**Layout: three-column detail view**
+
+When a record is selected the panel expands to three columns:
+
+```
+┌─────────────────┬──────────────────────────┬──────────────────────┐
+│  RAW NOTES      │  STRUCTURED WOD VIEW      │  MARKDOWN PREVIEW    │
+│  (read-only,    │  (model output, clearly   │  (editable textarea, │
+│   original      │   mapped to WOD schema)   │   what gets written  │
+│   source text)  │                           │   to Actalog)        │
+│                 │  WOD 1: Turducken         │                      │
+│  Turducken      │  ├ Regime: FOR_TIME       │  ## Turducken        │
+│  For Time       │  ├ Score:  TIME           │  **For Time**        │
+│  20 Deadlifts   │  ├ RPE:    9              │  **Score:** Time     │
+│  ...            │  ├ RX                     │  ### RX              │
+│                 │  │  · Deadlift 185#  x20  │  - 20 Deadlifts...   │
+│                 │  │  · Pull-Ups       x30  │                      │
+│                 │  ├ Intermediate           │                      │
+│                 │  │  · Deadlift 135#  x20  │                      │
+│                 │  └ Foundations            │                      │
+│                 │     · Deadlift  75#  x20  │                      │
+│                 │                           │                      │
+│                 │  Performance notes:       │                      │
+│                 │  "Felt good today"        │                      │
+└─────────────────┴──────────────────────────┴──────────────────────┘
+[ Approve ]  [ Edit raw + Re-parse ]  [ Reject ]
+```
+
+The middle column maps model JSON to WOD structure visually — each WOD card shows
+name, alt_name, regime, score_type, RPE, then scaling tiers as indented movement
+lists with reps and weights inline. This is read-only; corrections go via Markdown
+edit (right column) or re-parse (re-submit raw notes, left column).
+
+**Record list (above the detail panel)**
+
+| Column | Content |
 |---|---|
-| Filter bar | Filter by status: pending / approved / rejected / all |
-| Record list | Workout date, name, content_class, parse_status, parsed_at |
-| Detail panel | Side-by-side: raw notes (left), Markdown preview (right) |
-| Parsed WODs section | Expandable: each WOD with scaling tiers, movements, score type |
-| Performance notes section | Extracted personal notes shown separately |
-| Approve button | Writes Markdown to `notes`, commits WODs to local DB |
-| Edit + Approve button | Opens inline editor for Markdown and JSON before approving |
-| Reject button | Marks rejected, raw notes preserved untouched |
-| Re-parse button | Discards current parse, re-runs LLM on the original note |
+| Date | `workout_date` |
+| Workout | `workout_name` |
+| Class | `content_class` badge (WORKOUT / MIXED / PERFORMANCE_ONLY / SKIP) |
+| Status | `parse_status` badge (pending / approved / rejected / skipped) |
+| WODs | Count of WODs extracted |
+| Model | `llm_model` |
+| Parsed | `parsed_at` |
+
+Clicking a row expands the three-column detail panel below.
+Filter bar at top: All / Pending / Approved / Rejected / Skipped.
 
 ### Actalog dashboard — existing workout list / detail views
 
