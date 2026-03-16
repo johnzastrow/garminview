@@ -1,6 +1,7 @@
 """FastAPI routes for Actalog workout data and admin endpoints."""
 from __future__ import annotations
 
+import json
 from datetime import datetime, date
 from typing import Annotated
 
@@ -22,6 +23,12 @@ from garminview.api.schemas.actalog import (
     ActalogConfigOut,
     ActalogSyncStatus,
     ActalogConfigIn,
+    NoteParseItem,
+    NoteParseQueue,
+    ParserRunResult,
+    ParserConfigOut,
+    ParserConfigIn,
+    NoteParseApproveIn,
 )
 from garminview.models.actalog import (
     ActalogWorkout,
@@ -30,6 +37,15 @@ from garminview.models.actalog import (
     ActalogWorkoutWod,
     ActalogWod,
     ActalogPersonalRecord,
+    ActalogNoteParse,
+)
+from garminview.ingestion.notes_parser import (
+    NotesParser,
+    seed_default_config,
+    CONFIG_KEY_PROMPT,
+    CONFIG_KEY_MODEL,
+    CONFIG_KEY_URL,
+    CONFIG_KEY_MIN_LENGTH,
 )
 from garminview.models.config import AppConfig
 from garminview.models.health import DailySummary
@@ -517,3 +533,169 @@ def sync_status(
         records_upserted=row.records_upserted,
         error_message=row.error_message,
     )
+
+
+# ---------------------------------------------------------------------------
+# Notes parser admin routes  (prefix: /admin/actalog/parser)
+# ---------------------------------------------------------------------------
+
+parser_router = APIRouter()
+
+
+def _parse_item(row: ActalogNoteParse, session: Session) -> NoteParseItem:
+    """Enrich a staging row with workout name/date for display."""
+    workout = session.get(ActalogWorkout, row.workout_id) if row.workout_id else None
+    formatted_markdown = None
+    if row.parsed_json:
+        try:
+            formatted_markdown = json.loads(row.parsed_json).get("formatted_markdown")
+        except Exception:
+            pass
+    return NoteParseItem(
+        id=row.id,
+        workout_id=row.workout_id,
+        workout_name=workout.workout_name if workout else None,
+        workout_date=workout.workout_date if workout else None,
+        content_class=row.content_class,
+        parse_status=row.parse_status,
+        parsed_at=row.parsed_at,
+        reviewed_at=row.reviewed_at,
+        error_message=row.error_message,
+        llm_model=row.llm_model,
+        raw_notes=row.raw_notes,
+        formatted_markdown=formatted_markdown,
+        parsed_json=row.parsed_json,
+    )
+
+
+@parser_router.get("/queue", response_model=NoteParseQueue)
+def get_parser_queue(
+    status: str | None = Query(None, description="Filter by parse_status"),
+    session: Session = Depends(get_db),
+):
+    """List staged parse records, optionally filtered by status."""
+    q = session.query(ActalogNoteParse).order_by(ActalogNoteParse.parsed_at.desc())
+    if status:
+        q = q.filter(ActalogNoteParse.parse_status == status)
+    rows = q.all()
+    return NoteParseQueue(
+        total=len(rows),
+        items=[_parse_item(r, session) for r in rows],
+    )
+
+
+@parser_router.post("/run", response_model=ParserRunResult)
+def run_parser(session: Session = Depends(get_db)):
+    """Trigger the parser on all unprocessed notes."""
+    seed_default_config(session)
+    parser = NotesParser(session)
+    records = parser.parse_pending()
+    pending = sum(1 for r in records if r.parse_status == "pending")
+    skipped = sum(1 for r in records if r.parse_status == "skipped")
+    errors = sum(1 for r in records if r.error_message)
+    return ParserRunResult(
+        processed=len(records),
+        pending=pending,
+        skipped=skipped,
+        errors=errors,
+    )
+
+
+@parser_router.post("/approve/{parse_id}", response_model=NoteParseItem)
+def approve_parse(
+    parse_id: int,
+    body: NoteParseApproveIn,
+    session: Session = Depends(get_db),
+):
+    """Approve a parse record. Writes Markdown to workout.notes and commits WODs."""
+    record = session.get(ActalogNoteParse, parse_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Parse record not found")
+
+    workout = session.get(ActalogWorkout, record.workout_id)
+    if not workout:
+        raise HTTPException(status_code=404, detail="Workout not found")
+
+    # Apply any human edits supplied in the request body
+    markdown = body.formatted_markdown or workout.formatted_notes
+    perf_notes = body.performance_notes or workout.performance_notes
+
+    # Write approved Markdown to the canonical notes field
+    workout.notes = markdown
+    workout.formatted_notes = markdown
+    workout.performance_notes = perf_notes
+
+    record.parse_status = "approved"
+    record.reviewed_at = datetime.now()
+
+    session.commit()
+    return _parse_item(record, session)
+
+
+@parser_router.post("/reject/{parse_id}", response_model=NoteParseItem)
+def reject_parse(
+    parse_id: int,
+    session: Session = Depends(get_db),
+):
+    """Reject a parse record. Raw notes are left untouched."""
+    record = session.get(ActalogNoteParse, parse_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Parse record not found")
+    record.parse_status = "rejected"
+    record.reviewed_at = datetime.now()
+    session.commit()
+    return _parse_item(record, session)
+
+
+@parser_router.post("/reparse/{workout_id}", response_model=NoteParseItem)
+def reparse_workout(
+    workout_id: int,
+    session: Session = Depends(get_db),
+):
+    """Delete any existing parse for a workout and re-run the LLM."""
+    existing = (
+        session.query(ActalogNoteParse)
+        .filter(ActalogNoteParse.workout_id == workout_id)
+        .first()
+    )
+    if existing:
+        session.delete(existing)
+        session.flush()
+    seed_default_config(session)
+    parser = NotesParser(session)
+    record = parser.parse_workout(workout_id)
+    session.commit()
+    return _parse_item(record, session)
+
+
+@parser_router.get("/config", response_model=ParserConfigOut)
+def get_parser_config(session: Session = Depends(get_db)):
+    seed_default_config(session)
+    def cfg(key: str) -> str | None:
+        row = session.get(AppConfig, key)
+        return row.value if row else None
+    return ParserConfigOut(
+        ollama_url=cfg(CONFIG_KEY_URL),
+        model=cfg(CONFIG_KEY_MODEL),
+        min_note_length=int(cfg(CONFIG_KEY_MIN_LENGTH) or 20),
+        system_prompt=cfg(CONFIG_KEY_PROMPT),
+    )
+
+
+@parser_router.post("/config", response_model=ParserConfigOut)
+def save_parser_config(
+    body: ParserConfigIn,
+    session: Session = Depends(get_db),
+):
+    seed_default_config(session)
+    updates = {
+        CONFIG_KEY_URL: body.ollama_url,
+        CONFIG_KEY_MODEL: body.model,
+        CONFIG_KEY_MIN_LENGTH: str(body.min_note_length) if body.min_note_length else None,
+        CONFIG_KEY_PROMPT: body.system_prompt,
+    }
+    for key, value in updates.items():
+        if value is not None:
+            _set_cfg(session, key, value)
+    session.commit()
+    return get_parser_config(session)

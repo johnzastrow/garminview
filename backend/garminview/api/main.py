@@ -57,6 +57,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
     app.include_router(nutrition.router, prefix="/nutrition", tags=["nutrition"])
     app.include_router(actalog_routes.router, prefix="/actalog", tags=["actalog"])
     app.include_router(actalog_routes.admin_router, prefix="/admin/actalog", tags=["actalog-admin"])
+    app.include_router(actalog_routes.parser_router, prefix="/admin/actalog/parser", tags=["actalog-parser"])
 
     app.dependency_overrides[deps.get_db] = get_db
 

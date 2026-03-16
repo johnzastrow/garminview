@@ -127,3 +127,55 @@ class ActalogConfigIn(BaseModel):
     weight_unit: str | None = None
     sync_interval_hours: int | None = None
     sync_enabled: bool | None = None
+
+
+# ---------------------------------------------------------------------------
+# Notes parser schemas
+# ---------------------------------------------------------------------------
+
+class NoteParseItem(BaseModel):
+    model_config = {"from_attributes": True}
+    id: int
+    workout_id: int | None
+    workout_name: str | None = None
+    workout_date: datetime | None = None
+    content_class: str | None
+    parse_status: str | None
+    parsed_at: datetime | None
+    reviewed_at: datetime | None
+    error_message: str | None
+    llm_model: str | None
+    raw_notes: str | None
+    formatted_markdown: str | None = None  # from parsed_json
+    parsed_json: str | None
+
+
+class NoteParseQueue(BaseModel):
+    total: int
+    items: list[NoteParseItem]
+
+
+class ParserRunResult(BaseModel):
+    processed: int
+    pending: int
+    skipped: int
+    errors: int
+
+
+class ParserConfigOut(BaseModel):
+    ollama_url: str | None
+    model: str | None
+    min_note_length: int | None
+    system_prompt: str | None
+
+
+class ParserConfigIn(BaseModel):
+    ollama_url: str | None = None
+    model: str | None = None
+    min_note_length: int | None = None
+    system_prompt: str | None = None
+
+
+class NoteParseApproveIn(BaseModel):
+    formatted_markdown: str | None = None  # optional human edit before approve
+    performance_notes: str | None = None
