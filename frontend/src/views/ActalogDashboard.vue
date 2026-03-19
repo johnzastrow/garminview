@@ -10,6 +10,7 @@ import { useDateRangeStore } from "@/stores/dateRange"
 import DateRangePicker from "@/components/ui/DateRangePicker.vue"
 import DualAxisChart from "@/components/charts/DualAxisChart.vue"
 import { api } from "@/api/client"
+import { marked } from "marked"
 
 use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkPointComponent, CanvasRenderer])
 
@@ -255,6 +256,10 @@ interface ParseRecord {
   raw_notes: string | null
   formatted_markdown: string | null
   parsed_json: string | null
+  parse_duration_s: number | null
+  llm_tokens_prompt: number | null
+  llm_tokens_generated: number | null
+  llm_inference_s: number | null
 }
 interface ParsedWod {
   name: string
@@ -290,12 +295,30 @@ const qaParsedWods = computed((): ParsedWod[] => {
   } catch { return [] }
 })
 
+const qaMarkdownHtml = computed((): string => {
+  const src = qaEditMarkdown.value.trim()
+  if (!src) return "<p class=\"qa-md-empty\">No markdown generated.</p>"
+  return marked.parse(src) as string
+})
+
 const qaPerformanceNotes = computed((): string | null => {
   if (!qaSelected.value?.parsed_json) return null
   try {
     return JSON.parse(qaSelected.value.parsed_json).performance_notes ?? null
   } catch { return null }
 })
+
+function qaWodMismatch(r: ParseRecord): { jsonCount: number; mdCount: number } | null {
+  if (!r.parsed_json || !r.formatted_markdown) return null
+  let jsonCount = 0
+  try {
+    jsonCount = JSON.parse(r.parsed_json).wods?.length ?? 0
+  } catch { return null }
+  if (jsonCount === 0) return null
+  const mdCount = r.formatted_markdown.split("\n").filter(line => line.startsWith("# ")).length
+  if (mdCount === jsonCount) return null
+  return { jsonCount, mdCount }
+}
 
 function qaSelectRecord(r: ParseRecord) {
   qaSelected.value = r
@@ -646,7 +669,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
       <table v-if="!qaLoading && qaRecords.length" class="data-table qa-list">
         <thead>
           <tr>
-            <th>Date</th><th>Workout</th><th>Class</th><th>Status</th><th>WODs</th><th>Model</th><th>Parsed</th>
+            <th>Date</th><th>Workout</th><th>Class</th><th>Status</th><th>WODs</th><th>Model</th><th>Parsed</th><th>Time</th>
           </tr>
         </thead>
         <tbody>
@@ -657,9 +680,15 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
             <td>{{ r.workout_name ?? '—' }}</td>
             <td><span :class="['qa-badge', `qa-class-${(r.content_class??'').toLowerCase()}`]">{{ r.content_class ?? '—' }}</span></td>
             <td><span :class="['qa-badge', `qa-status-${(r.parse_status??'').toLowerCase()}`]">{{ r.parse_status ?? '—' }}</span></td>
-            <td>{{ r.parsed_json ? (JSON.parse(r.parsed_json).wods?.length ?? 0) : 0 }}</td>
+            <td>
+              {{ r.parsed_json ? (JSON.parse(r.parsed_json).wods?.length ?? 0) : 0 }}
+              <span v-if="qaWodMismatch(r)" class="qa-wod-warn-badge">
+                ⚠ {{ qaWodMismatch(r)!.jsonCount }} WODs / {{ qaWodMismatch(r)!.mdCount }} in markdown
+              </span>
+            </td>
             <td class="muted">{{ r.llm_model ?? '—' }}</td>
             <td class="muted">{{ r.parsed_at ? r.parsed_at.slice(0,16).replace('T',' ') : '—' }}</td>
+            <td><span v-if="r.parse_duration_s != null" class="qa-timing-chip">{{ r.parse_duration_s.toFixed(1) }}s</span></td>
           </tr>
         </tbody>
       </table>
@@ -670,7 +699,18 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
         <div class="qa-detail-header">
           <strong>{{ qaSelected.workout_name ?? 'Workout' }}</strong>
           <span class="muted" style="margin-left:8px;font-size:0.83rem">{{ qaSelected.workout_date?.slice(0,10) }}</span>
+          <span :class="['qa-badge', `qa-status-${(qaSelected.parse_status??'').toLowerCase()}`]" style="margin-left:10px">{{ qaSelected.parse_status ?? '—' }}</span>
+          <span :class="['qa-badge', `qa-class-${(qaSelected.content_class??'').toLowerCase()}`]" style="margin-left:6px">{{ qaSelected.content_class ?? '—' }}</span>
+          <span v-if="qaWodMismatch(qaSelected)" class="qa-wod-warn-badge qa-wod-warn-badge--prominent" style="margin-left:10px">
+            ⚠ {{ qaWodMismatch(qaSelected)!.jsonCount }} WODs / {{ qaWodMismatch(qaSelected)!.mdCount }} in markdown
+          </span>
           <button class="qa-close-btn" @click="qaSelected = null">✕</button>
+        </div>
+        <div v-if="qaSelected.parse_duration_s != null" class="qa-timing-row">
+          Wall: {{ qaSelected.parse_duration_s.toFixed(1) }}s
+          <span v-if="qaSelected.llm_inference_s != null"> · Infer: {{ qaSelected.llm_inference_s.toFixed(1) }}s</span>
+          <span v-if="qaSelected.llm_tokens_prompt != null"> · Prompt: {{ qaSelected.llm_tokens_prompt }} tok</span>
+          <span v-if="qaSelected.llm_tokens_generated != null"> · Generated: {{ qaSelected.llm_tokens_generated }} tok</span>
         </div>
 
         <div class="qa-three-col">
@@ -719,8 +759,13 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 
           <!-- Column 3: Editable Markdown -->
           <div class="qa-col">
-            <div class="qa-col-label">Markdown Preview <span class="muted">(edit before approving)</span></div>
+            <div class="qa-col-label">Markdown Source <span class="muted">(edit before approving)</span></div>
             <textarea v-model="qaEditMarkdown" class="qa-md-editor" placeholder="No markdown generated" />
+          </div>
+
+          <div class="qa-col">
+            <div class="qa-col-label">Rendered Preview <span class="muted">(live)</span></div>
+            <div class="qa-md-preview" v-html="qaMarkdownHtml" />
           </div>
 
         </div>
@@ -818,7 +863,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .qa-detail-header { display: flex; align-items: center; margin-bottom: 14px; font-size: 1rem; }
 .qa-close-btn { margin-left: auto; background: none; border: none; cursor: pointer; color: var(--muted); font-size: 1rem; }
 
-.qa-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; align-items: start; }
+.qa-three-col { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px; align-items: start; }
 .qa-col { display: flex; flex-direction: column; gap: 8px; }
 .qa-col-label { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
 .qa-raw { font-size: 0.78rem; white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; max-height: 480px; overflow-y: auto; color: var(--text); font-family: monospace; }
@@ -847,4 +892,32 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .btn-danger { padding: 7px 18px; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; border-radius: 6px; cursor: pointer; font-weight: 600; }
 .btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
 .qa-ok-msg { color: #166534; font-size: 0.83rem; }
+.qa-timing-chip { font-size: 0.72rem; padding: 1px 6px; border-radius: 4px; background: var(--surface); border: 1px solid var(--border); color: var(--muted); white-space: nowrap; }
+.qa-timing-row { font-size: 0.78rem; color: var(--muted); margin-bottom: 10px; }
+.qa-wod-warn-badge { display: inline-block; padding: 1px 7px; border-radius: 4px; font-size: 0.72rem; font-weight: 600; background: #fef9c3; color: #854d0e; border: 1px solid #fde68a; white-space: nowrap; vertical-align: middle; margin-left: 6px; }
+.qa-wod-warn-badge--prominent { font-size: 0.82rem; padding: 3px 10px; }
+
+/* Rendered markdown preview panel */
+.qa-md-preview {
+  font-size: 0.83rem;
+  line-height: 1.65;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  max-height: 480px;
+  overflow-y: auto;
+  color: var(--text);
+}
+.qa-md-preview h1 { font-size: 1.1rem; font-weight: 700; margin: 0 0 6px; color: var(--text); }
+.qa-md-preview h2 { font-size: 0.97rem; font-weight: 700; margin: 10px 0 4px; }
+.qa-md-preview h3 { font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--accent); margin: 10px 0 4px; }
+.qa-md-preview p  { margin: 4px 0; }
+.qa-md-preview ul { padding-left: 18px; margin: 4px 0; }
+.qa-md-preview li { margin: 2px 0; }
+.qa-md-preview strong { font-weight: 700; }
+.qa-md-preview em   { font-style: italic; color: var(--muted); }
+.qa-md-preview hr   { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
+.qa-md-preview code { font-family: monospace; font-size: 0.82rem; background: var(--surface); padding: 1px 4px; border-radius: 3px; }
+.qa-md-empty { color: var(--muted); font-style: italic; }
 </style>

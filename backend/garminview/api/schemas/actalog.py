@@ -148,6 +148,10 @@ class NoteParseItem(BaseModel):
     raw_notes: str | None
     formatted_markdown: str | None = None  # from parsed_json
     parsed_json: str | None
+    parse_duration_s: float | None = None
+    llm_tokens_prompt: int | None = None
+    llm_tokens_generated: int | None = None
+    llm_inference_s: float | None = None
 
 
 class NoteParseQueue(BaseModel):
@@ -160,6 +164,23 @@ class ParserRunResult(BaseModel):
     pending: int
     skipped: int
     errors: int
+
+
+class ParserModelStats(BaseModel):
+    model: str | None
+    n: int
+    avg_wall_s: float | None
+    avg_inference_s: float | None
+    avg_tokens_prompt: float | None
+    avg_tokens_generated: float | None
+    min_wall_s: float | None
+    max_wall_s: float | None
+
+
+class ParserStats(BaseModel):
+    total: int
+    by_status: dict[str, int]
+    by_model: list[ParserModelStats]
 
 
 class ParserConfigOut(BaseModel):
@@ -179,3 +200,8 @@ class ParserConfigIn(BaseModel):
 class NoteParseApproveIn(BaseModel):
     formatted_markdown: str | None = None  # optional human edit before approve
     performance_notes: str | None = None
+
+
+class ParserJobStatus(BaseModel):
+    running: bool
+    total_staged: int

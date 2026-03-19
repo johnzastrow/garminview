@@ -5,8 +5,8 @@ import json
 from datetime import datetime, date
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import cast, Date as SADate
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
+from sqlalchemy import cast, Date as SADate, func
 from sqlalchemy.orm import Session
 
 from garminview.api.deps import get_db
@@ -26,9 +26,12 @@ from garminview.api.schemas.actalog import (
     NoteParseItem,
     NoteParseQueue,
     ParserRunResult,
+    ParserJobStatus,
     ParserConfigOut,
     ParserConfigIn,
     NoteParseApproveIn,
+    ParserStats,
+    ParserModelStats,
 )
 from garminview.models.actalog import (
     ActalogWorkout,
@@ -56,6 +59,40 @@ from garminview.models.sync import SyncLog
 
 router = APIRouter()
 admin_router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Parser run-state (in-memory flag; resets on process restart)
+# ---------------------------------------------------------------------------
+
+_parser_running: bool = False
+
+
+def _run_parse_pending_bg(factory) -> None:
+    """Background task: parse pending notes using a fresh DB session."""
+    global _parser_running
+    try:
+        with factory() as session:
+            seed_default_config(session)
+            parser = NotesParser(session)
+            parser.parse_pending()
+    finally:
+        _parser_running = False
+
+
+def _run_reparse_all_bg(factory) -> None:
+    """Background task: delete non-approved staging records and re-run the parser."""
+    global _parser_running
+    try:
+        with factory() as session:
+            session.query(ActalogNoteParse).filter(
+                ActalogNoteParse.parse_status != "approved"
+            ).delete(synchronize_session=False)
+            session.commit()
+            seed_default_config(session, update_prompt=True)
+            parser = NotesParser(session)
+            parser.parse_pending()
+    finally:
+        _parser_running = False
 
 
 # ---------------------------------------------------------------------------
@@ -568,6 +605,13 @@ def _parse_item(row: ActalogNoteParse, session: Session) -> NoteParseItem:
     )
 
 
+@parser_router.get("/status", response_model=ParserJobStatus)
+def get_parser_status(session: Session = Depends(get_db)):
+    """Return whether a parser job is currently running and total staged record count."""
+    total_staged = session.query(ActalogNoteParse).count()
+    return ParserJobStatus(running=_parser_running, total_staged=total_staged)
+
+
 @parser_router.get("/queue", response_model=NoteParseQueue)
 def get_parser_queue(
     status: str | None = Query(None, description="Filter by parse_status"),
@@ -584,21 +628,25 @@ def get_parser_queue(
     )
 
 
-@parser_router.post("/run", response_model=ParserRunResult)
-def run_parser(session: Session = Depends(get_db)):
-    """Trigger the parser on all unprocessed notes."""
-    seed_default_config(session)
-    parser = NotesParser(session)
-    records = parser.parse_pending()
-    pending = sum(1 for r in records if r.parse_status == "pending")
-    skipped = sum(1 for r in records if r.parse_status == "skipped")
-    errors = sum(1 for r in records if r.error_message)
-    return ParserRunResult(
-        processed=len(records),
-        pending=pending,
-        skipped=skipped,
-        errors=errors,
-    )
+@parser_router.post("/run", response_model=ParserJobStatus)
+def run_parser(
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_db),
+):
+    """Start the parser on all unprocessed notes. Returns immediately."""
+    global _parser_running
+    from garminview.core.config import get_config
+    from garminview.core.database import create_db_engine, get_session_factory
+    if _parser_running:
+        total_staged = session.query(ActalogNoteParse).count()
+        return ParserJobStatus(running=True, total_staged=total_staged)
+    _parser_running = True
+    config = get_config()
+    engine = create_db_engine(config)
+    factory = get_session_factory(engine)
+    background_tasks.add_task(_run_parse_pending_bg, factory)
+    total_staged = session.query(ActalogNoteParse).count()
+    return ParserJobStatus(running=True, total_staged=total_staged)
 
 
 @parser_router.post("/approve/{parse_id}", response_model=NoteParseItem)
@@ -666,6 +714,67 @@ def reparse_workout(
     record = parser.parse_workout(workout_id)
     session.commit()
     return _parse_item(record, session)
+
+
+@parser_router.post("/reparse-all", response_model=ParserJobStatus)
+def reparse_all(
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_db),
+):
+    """Delete all non-approved staging records and re-run the parser. Returns immediately."""
+    global _parser_running
+    from garminview.core.config import get_config
+    from garminview.core.database import create_db_engine, get_session_factory
+    if _parser_running:
+        total_staged = session.query(ActalogNoteParse).count()
+        return ParserJobStatus(running=True, total_staged=total_staged)
+    _parser_running = True
+    config = get_config()
+    engine = create_db_engine(config)
+    factory = get_session_factory(engine)
+    background_tasks.add_task(_run_reparse_all_bg, factory)
+    total_staged = session.query(ActalogNoteParse).count()
+    return ParserJobStatus(running=True, total_staged=total_staged)
+
+
+@parser_router.get("/stats", response_model=ParserStats)
+def get_parser_stats(session: Session = Depends(get_db)):
+    """Aggregate timing and status metrics for all parse records."""
+    rows = session.query(ActalogNoteParse).all()
+
+    by_status: dict[str, int] = {}
+    for r in rows:
+        s = r.parse_status or "unknown"
+        by_status[s] = by_status.get(s, 0) + 1
+
+    # Group timing by model
+    from collections import defaultdict
+    groups: dict[str | None, list] = defaultdict(list)
+    for r in rows:
+        if r.parse_duration_s is not None:
+            groups[r.llm_model].append(r)
+
+    def _avg(vals):
+        return round(sum(vals) / len(vals), 2) if vals else None
+
+    by_model = []
+    for model, model_rows in groups.items():
+        wall = [r.parse_duration_s for r in model_rows if r.parse_duration_s is not None]
+        infer = [r.llm_inference_s for r in model_rows if r.llm_inference_s is not None]
+        tok_p = [r.llm_tokens_prompt for r in model_rows if r.llm_tokens_prompt is not None]
+        tok_g = [r.llm_tokens_generated for r in model_rows if r.llm_tokens_generated is not None]
+        by_model.append(ParserModelStats(
+            model=model,
+            n=len(model_rows),
+            avg_wall_s=_avg(wall),
+            avg_inference_s=_avg(infer),
+            avg_tokens_prompt=_avg(tok_p),
+            avg_tokens_generated=_avg(tok_g),
+            min_wall_s=round(min(wall), 2) if wall else None,
+            max_wall_s=round(max(wall), 2) if wall else None,
+        ))
+
+    return ParserStats(total=len(rows), by_status=by_status, by_model=by_model)
 
 
 @parser_router.get("/config", response_model=ParserConfigOut)

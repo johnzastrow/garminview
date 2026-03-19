@@ -31,7 +31,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
         yield
         stop_scheduler()
 
-    app = FastAPI(title="GarminView API", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="GarminView API", version="0.5.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=config.cors_origins,
@@ -63,7 +63,7 @@ def create_app(engine: Engine | None = None) -> FastAPI:
 
     @app.get("/")
     def root():
-        return {"status": "ok", "version": "0.4.0"}
+        return {"status": "ok", "version": "0.5.0"}
 
     return app
 

@@ -78,6 +78,10 @@ class ActalogNoteParse(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
     llm_model: Mapped[str | None] = mapped_column(String(64))
+    parse_duration_s: Mapped[float | None] = mapped_column(Float)       # wall-clock seconds
+    llm_tokens_prompt: Mapped[int | None] = mapped_column(Integer)      # Ollama prompt_eval_count
+    llm_tokens_generated: Mapped[int | None] = mapped_column(Integer)   # Ollama eval_count
+    llm_inference_s: Mapped[float | None] = mapped_column(Float)        # Ollama eval_duration (ns→s)
 
 
 class ActalogPersonalRecord(Base):

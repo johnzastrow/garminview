@@ -176,6 +176,81 @@
         </template>
       </div>
 
+      <!-- Parser Config tab -->
+      <div v-if="activeTab === 'parser'" class="parser-panel">
+        <h2>Notes Parser</h2>
+        <div v-if="parserLoading" class="muted">Loading config…</div>
+        <template v-else>
+          <div class="field-row">
+            <label>Ollama URL</label>
+            <input v-model="parserForm.ollama_url" class="input-sm" placeholder="http://localhost:11434" />
+          </div>
+          <div class="field-row">
+            <label>Model</label>
+            <input v-model="parserForm.model" class="input-sm" placeholder="qwen2.5:7b" />
+          </div>
+          <div class="field-row">
+            <label>Min Note Length</label>
+            <input v-model.number="parserForm.min_note_length" class="input-sm" type="number" min="1" style="min-width:80px;max-width:120px" />
+            <span class="muted" style="font-size:0.78rem">chars — shorter notes are skipped</span>
+          </div>
+          <div class="field-row prompt-row">
+            <label style="align-self:flex-start;padding-top:4px">System Prompt</label>
+            <textarea v-model="parserForm.system_prompt" class="prompt-textarea" rows="14" spellcheck="false" />
+          </div>
+          <div class="action-row">
+            <button class="btn-primary" @click="saveParserConfig">Save Config</button>
+            <button class="btn-secondary" :disabled="parserRunning" @click="runParser">
+              {{ parserRunning ? 'Running…' : 'Run Parser Now' }}
+            </button>
+            <button class="btn-danger" :disabled="parserRunning" @click="reparseAll">
+              {{ parserRunning ? 'Running…' : 'Reparse All Non-Approved' }}
+            </button>
+          </div>
+          <div v-if="parserMsg" :class="['status-msg', parserMsgOk ? 'ok' : 'err']">{{ parserMsg }}</div>
+
+          <!-- Live status bar — always visible -->
+          <div class="parser-status-bar">
+            <span :class="['status-dot', parserRunning ? 'dot-running' : 'dot-idle']"></span>
+            <span class="status-label">{{ parserRunning ? 'Running' : 'Idle' }}</span>
+            <span v-if="parserStatusDetail" class="status-detail">{{ parserStatusDetail }}</span>
+          </div>
+
+          <!-- Timing metrics -->
+          <div v-if="parserMetrics" class="metrics-panel">
+            <div class="metrics-header">
+              <span class="metrics-title">Parse Metrics</span>
+              <span class="muted" style="font-size:0.75rem">{{ parserMetrics.total }} records total · {{ Object.entries(parserMetrics.by_status).map(([k,v]) => `${v} ${k}`).join(' · ') }}</span>
+            </div>
+            <table class="metrics-table" v-if="parserMetrics.by_model.length">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>N</th>
+                  <th>Avg wall (s)</th>
+                  <th>Avg infer (s)</th>
+                  <th>Min / Max wall (s)</th>
+                  <th>Avg prompt tok</th>
+                  <th>Avg gen tok</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="m in parserMetrics.by_model" :key="m.model">
+                  <td class="model-cell">{{ m.model ?? '—' }}</td>
+                  <td>{{ m.n }}</td>
+                  <td>{{ m.avg_wall_s ?? '—' }}</td>
+                  <td>{{ m.avg_inference_s ?? '—' }}</td>
+                  <td>{{ m.min_wall_s ?? '—' }} / {{ m.max_wall_s ?? '—' }}</td>
+                  <td>{{ m.avg_tokens_prompt ?? '—' }}</td>
+                  <td>{{ m.avg_tokens_generated ?? '—' }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <div v-else class="muted" style="font-size:0.8rem">No timing data yet — run the parser first.</div>
+          </div>
+        </template>
+      </div>
+
     </div>
   </div>
 </template>
@@ -193,6 +268,7 @@ const tabs = [
   { id: "logs", label: "Sync Logs" },
   { id: "uploads", label: "Uploads" },
   { id: "actalog", label: "Actalog" },
+  { id: "parser", label: "Parser" },
 ]
 
 // --- Sync ---
@@ -280,11 +356,25 @@ onMounted(() => {
   api.get("/admin/schedules").then((r) => { schedules.value = r.data.schedules ?? []; schedulesLoading.value = false })
   api.get("/admin/config").then((r) => { config.value = r.data.config ?? []; configLoading.value = false })
   _loadActalogConfig()
+  _loadParserConfig()
+  // Re-attach polling if a parser run was already in progress
+  api.get("/admin/actalog/parser/status").then(r => {
+    if (r.data.running) { parserRunning.value = true; _startPolling() }
+  }).catch(() => {})
 })
 
-onUnmounted(() => sse?.close())
+onUnmounted(() => {
+  sse?.close()
+  if (_parserPollTimer) { clearInterval(_parserPollTimer); _parserPollTimer = null }
+})
 
-watch(activeTab, (tab) => { if (tab === 'logs') loadLogs() })
+watch(activeTab, (tab, prev) => {
+  if (tab === 'logs') loadLogs()
+  if (tab === 'parser') { _pollStatus(); _startPolling() }
+  if (prev === 'parser' && !parserRunning.value) {
+    clearInterval(_parserPollTimer!); _parserPollTimer = null
+  }
+})
 
 // --- Other tabs ---
 const schedules = ref<any[]>([])
@@ -412,6 +502,106 @@ async function syncActalog() {
     actalogSyncing.value = false
   }
 }
+
+// --- Parser ---
+const parserLoading = ref(true)
+const parserForm = ref({ ollama_url: "", model: "", min_note_length: 20, system_prompt: "" })
+const parserRunning = ref(false)
+const parserStagedCount = ref<number | null>(null)
+const parserStatusDetail = ref<string | null>(null)
+const parserMsg = ref("")
+const parserMsgOk = ref(true)
+const parserMetrics = ref<any | null>(null)
+let _parserPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function _pollStatus() {
+  try {
+    const r = await api.get("/admin/actalog/parser/status")
+    const { running, total_staged } = r.data
+    parserStagedCount.value = total_staged
+    parserStatusDetail.value = `${total_staged} records staged`
+    if (running && !parserRunning.value) {
+      parserRunning.value = true
+    }
+    if (!running && parserRunning.value) {
+      parserRunning.value = false
+      parserMsg.value = "Run complete."
+      parserMsgOk.value = true
+      clearInterval(_parserPollTimer!)
+      _parserPollTimer = null
+      await _loadParserMetrics()
+    }
+  } catch { /* ignore */ }
+}
+
+function _startPolling() {
+  if (_parserPollTimer) return
+  _parserPollTimer = setInterval(_pollStatus, 4000)
+}
+
+async function _loadParserConfig() {
+  try {
+    const [cfgR, statsR] = await Promise.all([
+      api.get("/admin/actalog/parser/config"),
+      api.get("/admin/actalog/parser/stats"),
+      _pollStatus(),
+    ])
+    const c = cfgR.data
+    parserForm.value.ollama_url = c.ollama_url ?? ""
+    parserForm.value.model = c.model ?? ""
+    parserForm.value.min_note_length = c.min_note_length ?? 20
+    parserForm.value.system_prompt = c.system_prompt ?? ""
+    parserMetrics.value = statsR.data
+  } catch {
+    // backend unreachable — form stays at defaults
+  } finally {
+    parserLoading.value = false
+  }
+}
+
+async function _loadParserMetrics() {
+  try {
+    const r = await api.get("/admin/actalog/parser/stats")
+    parserMetrics.value = r.data
+  } catch { /* ignore */ }
+}
+
+async function saveParserConfig() {
+  parserMsg.value = ""
+  try {
+    await api.post("/admin/actalog/parser/config", parserForm.value)
+    parserMsg.value = "Config saved."
+    parserMsgOk.value = true
+  } catch (e: any) {
+    parserMsg.value = `Save failed: ${e.response?.data?.detail ?? e.message}`
+    parserMsgOk.value = false
+  }
+}
+
+async function reparseAll() {
+  if (!confirm("Delete all non-approved parse records and reparse everything? Approved notes are not affected.")) return
+  parserMsg.value = ""
+  try {
+    await api.post("/admin/actalog/parser/reparse-all")
+    parserRunning.value = true
+    _startPolling()
+  } catch (e: any) {
+    parserMsg.value = `Reparse failed: ${e.response?.data?.detail ?? e.message}`
+    parserMsgOk.value = false
+  }
+}
+
+async function runParser() {
+  parserMsg.value = ""
+  try {
+    await api.post("/admin/actalog/parser/run")
+    parserRunning.value = true
+    _startPolling()
+  } catch (e: any) {
+    parserMsg.value = `Parser run failed: ${e.response?.data?.detail ?? e.message}`
+    parserMsgOk.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -529,4 +719,61 @@ th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; 
 .status-msg.ok { background: #F0FDF4; color: #16A34A; }
 .status-msg.err { background: #FEF2F2; color: #DC2626; }
 .muted { color: var(--muted); }
+
+/* Parser tab */
+.parser-panel { padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }
+.prompt-row { align-items: flex-start; }
+.prompt-textarea {
+  flex: 1;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: monospace;
+  background: var(--bg);
+  color: var(--text);
+  resize: vertical;
+  min-height: 200px;
+  line-height: 1.5;
+}
+.prompt-textarea:focus { outline: none; border-color: var(--accent); }
+.parser-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.stat-chip {
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  background: #F0FDF4;
+  color: #16A34A;
+}
+.stat-chip.pending { background: #FEF9C3; color: #854D0E; }
+.stat-chip.skipped { background: #F3F4F6; color: #6B7280; }
+.stat-chip.error   { background: #FEF2F2; color: #DC2626; }
+.btn-danger { padding: 7px 16px; background: #DC2626; color: #fff; border: none; border-radius: 6px; font-size: 0.85rem; cursor: pointer; font-family: inherit; }
+.btn-danger:hover:not(:disabled) { background: #b91c1c; }
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+.parser-status-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; border-radius: 6px;
+  background: var(--bg); border: 1px solid var(--border);
+  font-size: 0.82rem;
+}
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+.dot-idle { background: #6b7280; }
+.dot-running { background: #f59e0b; animation: pulse 1.2s ease-in-out infinite; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+.status-label { font-weight: 600; color: var(--text); }
+.status-detail { color: var(--muted); }
+.metrics-panel { margin-top: 16px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.metrics-header { display: flex; align-items: baseline; gap: 12px; padding: 8px 14px; background: var(--bg); border-bottom: 1px solid var(--border); }
+.metrics-title { font-size: 0.85rem; font-weight: 700; color: var(--text); }
+.metrics-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+.metrics-table th { padding: 6px 12px; text-align: right; font-weight: 600; color: var(--muted); background: var(--bg); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.metrics-table th:first-child { text-align: left; }
+.metrics-table td { padding: 7px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+.metrics-table td:first-child { text-align: left; }
+.metrics-table tr:last-child td { border-bottom: none; }
+.model-cell { font-family: monospace; font-size: 0.78rem; color: var(--text); }
 </style>

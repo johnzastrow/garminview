@@ -3,18 +3,96 @@
     <header class="page-header">
       <div>
         <h1 class="page-title">Correlation Explorer</h1>
-        <p class="page-sub">Statistical relationships between health & fitness metrics</p>
+        <p class="page-sub">Statistical relationships between health &amp; fitness metrics</p>
       </div>
     </header>
 
     <div class="range-row">
       <span class="range-label">Period</span>
       <DateRangePicker />
-      <span class="range-note">Correlations are computed from all available data by the analysis engine</span>
     </div>
 
-    <div v-if="loading" class="loading"><div class="spinner"></div><span>Loading correlations…</span></div>
-    <div v-else-if="error" class="error-msg">{{ error }}</div>
+    <!-- ── Wellness Trends ────────────────────────────── -->
+    <section class="wellness-section">
+      <h2 class="section-heading">Wellness Over Time</h2>
+      <p class="chart-desc">
+        Resting HR and weight are your anchor metrics — both respond to sleep, stress, and training load.
+        Use the date range above to zoom in on a specific period.
+      </p>
+
+      <div v-if="wellnessLoading" class="loading">
+        <div class="spinner"></div><span>Loading wellness data…</span>
+      </div>
+
+      <template v-else-if="merged.length >= 3">
+        <!-- Two charts side by side -->
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">Resting HR &amp; Weight</span>
+              <span v-if="rhrWeightR !== null" class="r-chip" :class="rChipClass(rhrWeightR)">
+                r&nbsp;=&nbsp;{{ rhrWeightR.toFixed(2) }}
+              </span>
+              <span class="chart-note">solid = RHR (left) · dashed = weight (right)</span>
+            </div>
+            <DualAxisChart :left="rhrAxis" :right="weightAxis" height="260px" />
+          </div>
+
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">All signals (normalized 0–100)</span>
+              <span class="chart-note">each metric scaled to its own range · hover for actual values</span>
+            </div>
+            <NormalizedTrendsChart :series="normalizedSeries" height="260px" />
+          </div>
+        </div>
+
+        <!-- Key relationship cards -->
+        <div class="rel-grid">
+          <div
+            v-for="rel in keyRelationships"
+            :key="rel.key"
+            class="rel-card"
+          >
+            <div class="rel-metrics">
+              <span class="rel-m">{{ rel.labelA }}</span>
+              <span class="rel-sep">↔</span>
+              <span class="rel-m">{{ rel.labelB }}</span>
+            </div>
+            <template v-if="rel.r !== null">
+              <div class="rel-bar-row">
+                <span class="rel-r-bar-wrap">
+                  <span
+                    class="rel-r-bar"
+                    :style="{ width: Math.abs(rel.r) * 100 + '%', background: rel.r >= 0 ? '#3B82F6' : '#EF4444' }"
+                  ></span>
+                </span>
+                <span class="rel-r-num" :class="rel.r >= 0 ? 'pos' : 'neg'">{{ rel.r >= 0 ? '+' : '' }}{{ rel.r.toFixed(2) }}</span>
+              </div>
+              <div class="rel-footer">
+                <span class="badge" :class="strengthClass(rel.r)">{{ strength(rel.r) }}</span>
+                <span class="rel-dir">{{ rel.r >= 0 ? '↑↑ positive' : '↑↓ inverse' }}</span>
+                <span class="rel-n">n={{ rel.n }}</span>
+              </div>
+            </template>
+            <div v-else class="rel-insufficient">insufficient data</div>
+          </div>
+        </div>
+      </template>
+
+      <div v-else class="empty-state small">
+        <p>No wellness data in this date range. Try extending the period or syncing from the <a href="/admin">Admin</a> panel.</p>
+      </div>
+    </section>
+
+    <!-- ── Pre-computed Correlation Matrix ───────────── -->
+    <div class="divider-row">
+      <span class="divider-label">Pre-computed Correlation Matrix</span>
+      <span class="divider-note">Computed by the analysis engine across all historical data</span>
+    </div>
+
+    <div v-if="matrixLoading" class="loading"><div class="spinner"></div><span>Loading correlations…</span></div>
+    <div v-else-if="matrixError" class="error-msg">{{ matrixError }}</div>
 
     <template v-else-if="rows.length === 0">
       <div class="empty-state">
@@ -91,11 +169,178 @@
 import { ref, computed, onMounted } from "vue"
 import { api } from "@/api/client"
 import DateRangePicker from "@/components/ui/DateRangePicker.vue"
+import DualAxisChart from "@/components/charts/DualAxisChart.vue"
+import NormalizedTrendsChart from "@/components/charts/NormalizedTrendsChart.vue"
+import { useMetricData } from "@/composables/useMetricData"
+import type { NormSeries } from "@/components/charts/NormalizedTrendsChart.vue"
+
+// ── Types ────────────────────────────────────────────────────────────────────
+
+interface DailySummary {
+  date: string
+  hr_resting: number | null
+  sleep_score: number | null
+  stress_avg: number | null
+  body_battery_max: number | null
+  spo2_avg: number | null
+  intensity_min_moderate: number | null
+  intensity_min_vigorous: number | null
+}
+
+interface WeightRecord {
+  date: string
+  weight_kg: number | null
+}
 
 interface CorrRow { metric_a: string; metric_b: string; r_pearson: number; p_value: number }
 
-const loading = ref(true)
-const error = ref<string | null>(null)
+interface MergedDay {
+  date: string
+  rhr: number | null
+  weight_kg: number | null
+  sleep_score: number | null
+  stress_avg: number | null
+  body_battery: number | null
+  spo2: number | null
+  active_min: number | null
+}
+
+type MetricKey = keyof Omit<MergedDay, "date">
+
+// ── Wellness data ─────────────────────────────────────────────────────────────
+
+const { data: dailyData, loading: dailyLoading } = useMetricData<DailySummary[]>("/health/daily")
+const { data: weightData, loading: weightLoading } = useMetricData<WeightRecord[]>("/body/weight")
+
+const wellnessLoading = computed(() => dailyLoading.value || weightLoading.value)
+
+const merged = computed<MergedDay[]>(() => {
+  if (!dailyData.value) return []
+  const byDate = new Map<string, number | null>()
+  for (const w of weightData.value ?? []) {
+    if (w.weight_kg != null) byDate.set(String(w.date), w.weight_kg)
+  }
+  return dailyData.value.map((d) => ({
+    date: String(d.date),
+    rhr: d.hr_resting ?? null,
+    weight_kg: byDate.get(String(d.date)) ?? null,
+    sleep_score: d.sleep_score ?? null,
+    stress_avg: d.stress_avg ?? null,
+    body_battery: d.body_battery_max ?? null,
+    spo2: d.spo2_avg ?? null,
+    active_min:
+      (d.intensity_min_moderate ?? 0) + (d.intensity_min_vigorous ?? 0) * 2 || null,
+  }))
+})
+
+// ── Chart series ──────────────────────────────────────────────────────────────
+
+const rhrAxis = computed(() => ({
+  name: "Resting HR",
+  data: merged.value.map((d) => [d.date, d.rhr] as [string, number | null]),
+  color: "#EF4444",
+  unit: "bpm",
+}))
+
+const weightAxis = computed(() => ({
+  name: "Weight",
+  data: merged.value.map((d) => [d.date, d.weight_kg] as [string, number | null]),
+  color: "#6366F1",
+  unit: "kg",
+}))
+
+const normalizedSeries = computed<NormSeries[]>(() => [
+  {
+    name: "Resting HR",
+    data: merged.value.map((d) => [d.date, d.rhr] as [string, number | null]),
+    color: "#EF4444",
+    unit: "bpm",
+  },
+  {
+    name: "Weight",
+    data: merged.value.map((d) => [d.date, d.weight_kg] as [string, number | null]),
+    color: "#6366F1",
+    unit: "kg",
+  },
+  {
+    name: "Sleep Score",
+    data: merged.value.map((d) => [d.date, d.sleep_score] as [string, number | null]),
+    color: "#8B5CF6",
+  },
+  {
+    name: "Body Battery",
+    data: merged.value.map((d) => [d.date, d.body_battery] as [string, number | null]),
+    color: "#22C55E",
+  },
+  {
+    name: "Stress",
+    data: merged.value.map((d) => [d.date, d.stress_avg] as [string, number | null]),
+    color: "#F59E0B",
+  },
+  {
+    name: "SpO₂",
+    data: merged.value.map((d) => [d.date, d.spo2] as [string, number | null]),
+    color: "#06B6D4",
+    unit: "%",
+  },
+])
+
+// ── Pearson r ─────────────────────────────────────────────────────────────────
+
+function pearsonR(xs: number[], ys: number[]): number | null {
+  const n = xs.length
+  if (n < 5) return null
+  const mx = xs.reduce((a, b) => a + b, 0) / n
+  const my = ys.reduce((a, b) => a + b, 0) / n
+  const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i]! - my), 0)
+  const den = Math.sqrt(
+    xs.reduce((s, x) => s + (x - mx) ** 2, 0) *
+    ys.reduce((s, y) => s + (y - my) ** 2, 0)
+  )
+  return den === 0 ? null : num / den
+}
+
+function computeR(ka: MetricKey, kb: MetricKey) {
+  const pairs = merged.value.filter((d) => d[ka] != null && d[kb] != null)
+  const xs = pairs.map((d) => d[ka] as number)
+  const ys = pairs.map((d) => d[kb] as number)
+  return { r: pearsonR(xs, ys), n: pairs.length }
+}
+
+const rhrWeightR = computed(() => computeR("rhr", "weight_kg").r)
+
+interface RelCard {
+  key: string
+  labelA: string
+  labelB: string
+  r: number | null
+  n: number
+}
+
+const keyRelationships = computed<RelCard[]>(() => {
+  const pairs: [MetricKey, MetricKey, string, string][] = [
+    ["rhr", "weight_kg", "Resting HR", "Weight"],
+    ["rhr", "sleep_score", "Resting HR", "Sleep Score"],
+    ["rhr", "stress_avg", "Resting HR", "Stress"],
+    ["rhr", "body_battery", "Resting HR", "Body Battery"],
+    ["sleep_score", "stress_avg", "Sleep Score", "Stress"],
+    ["sleep_score", "body_battery", "Sleep Score", "Body Battery"],
+    ["body_battery", "stress_avg", "Body Battery", "Stress"],
+    ["weight_kg", "sleep_score", "Weight", "Sleep Score"],
+  ]
+  return pairs
+    .map(([ka, kb, la, lb]) => {
+      const { r, n } = computeR(ka, kb)
+      return { key: `${ka}-${kb}`, labelA: la, labelB: lb, r, n }
+    })
+    .filter((c) => c.n >= 5)
+    .sort((a, b) => Math.abs(b.r ?? 0) - Math.abs(a.r ?? 0))
+})
+
+// ── Pre-computed matrix ───────────────────────────────────────────────────────
+
+const matrixLoading = ref(true)
+const matrixError = ref<string | null>(null)
 const rows = ref<CorrRow[]>([])
 const minR = ref(0.3)
 const maxP = ref(0.05)
@@ -106,16 +351,16 @@ onMounted(async () => {
     const r = await api.get("/assessments/correlations/matrix")
     rows.value = (r.data.correlations ?? []) as CorrRow[]
   } catch (e: any) {
-    error.value = e?.message ?? "Failed to load correlations"
+    matrixError.value = e?.message ?? "Failed to load correlations"
   } finally {
-    loading.value = false
+    matrixLoading.value = false
   }
 })
 
 function sortBy(key: "r" | "p") { sort.value = key }
 
 const filtered = computed(() => {
-  let out = rows.value.filter(r => Math.abs(r.r_pearson) >= minR.value && r.p_value <= maxP.value)
+  let out = rows.value.filter((r) => Math.abs(r.r_pearson) >= minR.value && r.p_value <= maxP.value)
   if (sort.value === "r") out = [...out].sort((a, b) => Math.abs(b.r_pearson) - Math.abs(a.r_pearson))
   else out = [...out].sort((a, b) => a.p_value - b.p_value)
   return out
@@ -125,8 +370,10 @@ const heatmapRows = computed(() =>
   [...rows.value].sort((a, b) => Math.abs(b.r_pearson) - Math.abs(a.r_pearson)).slice(0, 20)
 )
 
-function fmt(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()) }
-function shortFmt(s: string) { return s.split("_").map(w => w[0]).join("").toUpperCase() }
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(s: string) { return s.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) }
+function shortFmt(s: string) { return s.split("_").map((w) => w[0]).join("").toUpperCase() }
 
 function strength(r: number): string {
   const a = Math.abs(r)
@@ -142,11 +389,14 @@ function strengthClass(r: number): string {
   if (a >= 0.2) return "weak"
   return "negligible"
 }
-function pClass(p: number): string { return p < 0.05 ? "sig" : "nonsig" }
-
-function barColor(r: number): string {
-  return r >= 0 ? "#3B82F6" : "#EF4444"
+function rChipClass(r: number): string {
+  const a = Math.abs(r)
+  if (a >= 0.5) return r >= 0 ? "chip-strong-pos" : "chip-strong-neg"
+  if (a >= 0.2) return r >= 0 ? "chip-mod-pos" : "chip-mod-neg"
+  return "chip-weak"
 }
+function pClass(p: number): string { return p < 0.05 ? "sig" : "nonsig" }
+function barColor(r: number): string { return r >= 0 ? "#3B82F6" : "#EF4444" }
 function heatColor(r: number): string {
   const a = Math.abs(r)
   if (r >= 0) return `rgba(59,130,246,${0.15 + a * 0.7})`
@@ -155,15 +405,86 @@ function heatColor(r: number): string {
 </script>
 
 <style scoped>
-.page { display: flex; flex-direction: column; gap: 24px; max-width: 1100px; }
+.page { display: flex; flex-direction: column; gap: 24px; max-width: 1200px; }
 .page-header { display: flex; align-items: flex-end; justify-content: space-between; }
 .page-title { font-size: 1.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1; color: var(--text); }
 .page-sub { margin-top: 4px; font-size: 0.83rem; color: var(--muted); }
 .range-row { display: flex; align-items: center; gap: 10px; }
-.range-label { font-size: 0.78rem; color: var(--muted); font-weight: 500; white-space: nowrap; }
-.range-note { font-size: 0.75rem; color: var(--muted); font-style: italic; }
 .chart-desc { font-size: 0.78rem; color: var(--muted); margin: -6px 0 10px; line-height: 1.5; }
 
+/* ── Wellness section ── */
+.wellness-section { display: flex; flex-direction: column; gap: 16px; }
+.section-heading { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+@media (max-width: 800px) { .charts-grid { grid-template-columns: 1fr; } }
+
+.chart-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.chart-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.chart-title { font-size: 0.82rem; font-weight: 700; color: var(--text); }
+.chart-note { font-size: 0.72rem; color: var(--muted); margin-left: auto; }
+.r-chip {
+  font-size: 0.73rem; font-weight: 700; font-family: monospace;
+  padding: 2px 7px; border-radius: 999px;
+}
+.chip-strong-pos { background: #DBEAFE; color: #1D4ED8; }
+.chip-strong-neg { background: #FEE2E2; color: #B91C1C; }
+.chip-mod-pos   { background: #EFF6FF; color: #3B82F6; }
+.chip-mod-neg   { background: #FEF2F2; color: #EF4444; }
+.chip-weak      { background: var(--border); color: var(--muted); }
+
+/* ── Relationship cards ── */
+.rel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+.rel-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.rel-metrics { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.rel-m { font-size: 0.78rem; font-weight: 700; color: var(--text); }
+.rel-sep { font-size: 0.75rem; color: var(--muted); }
+.rel-bar-row { display: flex; align-items: center; gap: 6px; }
+.rel-r-bar-wrap {
+  flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden;
+}
+.rel-r-bar { display: block; height: 100%; border-radius: 3px; transition: width 0.3s; }
+.rel-r-num { font-family: monospace; font-size: 0.82rem; font-weight: 700; min-width: 38px; text-align: right; }
+.rel-r-num.pos { color: #3B82F6; }
+.rel-r-num.neg { color: #EF4444; }
+.rel-footer { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.rel-dir { font-size: 0.72rem; color: var(--muted); }
+.rel-n { font-size: 0.7rem; color: var(--muted); margin-left: auto; font-family: monospace; }
+.rel-insufficient { font-size: 0.72rem; color: var(--muted); font-style: italic; }
+
+/* ── Divider ── */
+.divider-row {
+  display: flex; align-items: baseline; gap: 10px;
+  border-top: 1px solid var(--border); padding-top: 20px;
+}
+.divider-label { font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; color: var(--muted); }
+.divider-note { font-size: 0.72rem; color: var(--muted); font-style: italic; }
+
+/* ── Matrix controls / table / heatmap (unchanged) ── */
 .controls { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 18px; }
 .filter-label { display: flex; align-items: center; gap: 8px; font-size: 0.82rem; font-weight: 600; color: var(--muted); }
 .slider { width: 100px; }
@@ -179,6 +500,7 @@ th.sortable:hover { color: var(--text); }
 .sort-icon { font-size: 0.7rem; }
 
 .metric-name { font-weight: 500; color: var(--text); }
+.r-val { }
 .r-bar-wrap { display: flex; align-items: center; gap: 6px; }
 .r-bar { height: 8px; border-radius: 4px; min-width: 2px; flex-shrink: 0; }
 .r-num { font-family: monospace; font-size: 0.83rem; color: var(--text); min-width: 48px; }
@@ -206,6 +528,7 @@ th.sortable:hover { color: var(--text); }
 .error-msg { color: #DC2626; padding: 16px; background: #FEF2F2; border-radius: var(--radius); font-size: 0.875rem; }
 
 .empty-state { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 60px 0; color: var(--muted); text-align: center; }
+.empty-state.small { padding: 20px 0; }
 .empty-state svg { width: 48px; height: 48px; opacity: 0.4; }
 .empty-state h2 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
 .empty-state p { font-size: 0.88rem; }

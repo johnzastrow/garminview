@@ -65,7 +65,7 @@ def test_note_with_workout_keywords_calls_llm():
         }],
         "formatted_markdown": "## Fran\n**For Time**\n- Thrusters\n- Pull-Ups",
     })
-    with patch.object(parser, "_call_ollama", return_value=(llm_response, None)):
+    with patch.object(parser, "_call_ollama", return_value=(llm_response, None, {"parse_duration_s": 1.2})):
         record = parser.parse_workout(1)
     assert record.parse_status == "pending"
     assert record.content_class == "WORKOUT"
@@ -75,7 +75,7 @@ def test_note_with_workout_keywords_calls_llm():
 def test_invalid_json_from_llm_sets_error():
     session, _ = _make_session("AMRAP 20 min: 5 pull-ups, 10 push-ups, 15 squats")
     parser = NotesParser(session)
-    with patch.object(parser, "_call_ollama", return_value=("not valid json {{{", None)):
+    with patch.object(parser, "_call_ollama", return_value=("not valid json {{{", None, {"parse_duration_s": 0.5})):
         record = parser.parse_workout(1)
     assert record.parse_status == "skipped"
     assert record.error_message is not None
@@ -85,7 +85,7 @@ def test_invalid_json_from_llm_sets_error():
 def test_llm_timeout_sets_error():
     session, _ = _make_session("AMRAP 20 min: 5 pull-ups, 10 push-ups, 15 squats")
     parser = NotesParser(session)
-    with patch.object(parser, "_call_ollama", return_value=(None, "Ollama request timed out (>300s)")):
+    with patch.object(parser, "_call_ollama", return_value=(None, "Ollama request timed out (>300s)", {"parse_duration_s": 300.1})):
         record = parser.parse_workout(1)
     assert record.parse_status == "skipped"
     assert "timed out" in record.error_message
@@ -110,7 +110,7 @@ def test_formatted_notes_written_to_workout_on_success():
         }],
         "formatted_markdown": markdown,
     })
-    with patch.object(parser, "_call_ollama", return_value=(llm_response, None)):
+    with patch.object(parser, "_call_ollama", return_value=(llm_response, None, {"parse_duration_s": 2.1, "llm_tokens_prompt": 300, "llm_tokens_generated": 150, "llm_inference_s": 1.9})):
         parser.parse_workout(1)
     assert workout.formatted_notes == markdown
     assert workout.performance_notes == "Felt good"
