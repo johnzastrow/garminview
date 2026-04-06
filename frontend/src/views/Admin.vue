@@ -367,7 +367,11 @@ function lineClass(line: string): string {
 onMounted(() => {
   connectSSE()
   api.get("/admin/schedules").then((r) => { schedules.value = r.data.schedules ?? []; schedulesLoading.value = false })
-  api.get("/admin/config").then((r) => { config.value = r.data.config ?? []; configLoading.value = false })
+  api.get("/admin/config").then((r) => {
+    config.value = r.data.config ?? []
+    config.value.forEach((row: any) => { cfgDraft.value[row.key] = row.value ?? "" })
+    configLoading.value = false
+  })
   _loadActalogConfig()
   _loadParserConfig()
   // Re-attach polling if a parser run was already in progress
