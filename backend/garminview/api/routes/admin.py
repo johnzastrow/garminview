@@ -124,7 +124,7 @@ def get_all_config(session: Annotated[Session, Depends(get_db)]):
 
 
 @router.put("/config/{key}")
-def update_config(key: str, value: str, session: Annotated[Session, Depends(get_db)]):
+def update_config(key: str, value: Annotated[str, Body()], session: Annotated[Session, Depends(get_db)]):
     row = session.get(AppConfig, key)
     if not row:
         raise HTTPException(404, "Config key not found")
