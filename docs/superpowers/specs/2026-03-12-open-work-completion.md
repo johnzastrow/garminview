@@ -98,6 +98,16 @@ Run after the schema alignment migration is applied so column names are correct.
 
 ## 7. Docker Build + Local Deploy
 
+**GarminDB in container:** Add `garmindb` to `backend/pyproject.toml` dependencies. This installs `garmindb_cli.py` on the container PATH via the project venv so the scheduled sync can run the download step inside the container.
+
+**Volume change:** In `docker-compose.yml`, change the HealthData mount from `:ro` to read-write so `garmindb_cli.py` can write downloaded files:
+
+```yaml
+- ${HEALTH_DATA_DIR:-~/HealthData}:/data/HealthData
+```
+
+The `.GarminDb` credentials mount remains `:ro`.
+
 ```bash
 # Build images locally
 docker build -t ghcr.io/johnzastrow/garminview-backend:local backend/
