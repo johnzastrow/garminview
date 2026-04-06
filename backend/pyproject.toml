@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "garminview"
-version = "0.5.0"
+version = "0.6.0"
 requires-python = ">=3.10"
 dependencies = [
     "fastapi>=0.110.0",
