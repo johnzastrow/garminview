@@ -54,86 +54,16 @@
 - [x] SSE reconnect + `triggerSync()` error handling in Admin.vue
 - [x] Validation suite `compare.py` updated for MariaDB + expanded table map
 
----
+### Open work completion (2026-03-12)
 
-## Open: High priority
-
-### APScheduler integration
-
-**File:** `backend/garminview/api/main.py`
-
-`SyncSchedule` model and admin routes exist; APScheduler is not wired up.
-
-Fix: In `create_app()`, start an APScheduler instance, load `sync_schedule` rows from DB, register jobs. On config update via admin API, hot-reload the schedule.
-
----
-
-## Open: Medium priority
-
-### Historical monitoring re-ingestion (2012–2023)
-
-The `timestamp_16` fix means all historical monitoring data was stored with NULL `hr`. Re-ingestion backfills ~11 years of minute-level HR data.
-
-```bash
-cd ~/Github/garminview/backend
-uv run python tests/validation/run_garminview.py --start 2012-01-01 --end 2023-12-31
-```
-
-Run validation suite after:
-
-```bash
-uv run python tests/validation/compare.py
-```
-
-### Python model / live DB alignment
-
-`docs/SCHEMA.md` documents 107 column name divergences between the SQLAlchemy models and the live MariaDB schema (e.g., `heart_rate` vs `hr`, `avg_speed_ms` vs `avg_speed`). These should be reconciled via an Alembic migration so the models match the actual columns.
-
-File: `backend/garminview/models/` + a new Alembic revision.
-
-### CLAUDE.md update
-
-Add to `CLAUDE.md`:
-- MariaDB connection details
-- `uv run python tests/validation/compare.py` as the QA command
-- The `timestamp_16` resolution pattern for future FIT adapter work
-- Note on `--analyze` flag being excluded from GarminDB CLI calls
-
-### Lower-priority dashboards
-
-- `LongTermTrends.vue` — connect to `/training/correlations/`
-- `CorrelationExplorer.vue` — connect to `/training/correlations/`
-- `AssessmentsGoals.vue` — connect to `/assessments/`
-- `DataQuality.vue` — connect to `/admin/data-quality`
-- `TrainingLoadDashboard.vue` — full PMC chart (ATL/CTL/TSB over time)
-
----
-
-## Open: Low priority / future
-
-### Actalog API integration
-
-Pull workout session data (sets, reps, loads, RPE) from a self-hosted Actalog instance. Fill activity gaps where Garmin was not worn. Run cross-source correlations between strength load and Garmin recovery signals. See deleted detail in git history for full spec.
-
-**New files required:**
-- `backend/garminview/models/actalog.py`
-- `backend/garminview/ingestion/api_adapters/actalog_client.py`
-- `backend/garminview/ingestion/api_adapters/actalog_adapter.py`
-- `backend/garminview/analysis/actalog_dedup.py`
-- `backend/garminview/analysis/strength_metrics.py`
-- `backend/garminview/api/routes/strength.py`
-- `frontend/src/views/StrengthDashboard.vue`
-
-### Garmin Connect API adapters
-
-Routes returning empty results for `hrv_data`, `training_readiness`, `vo2max`, `race_predictions`, `lactate_threshold` — these require live API calls via `python-garminconnect`. Low priority until API auth is configured.
-
-**File:** `backend/garminview/ingestion/orchestrator.py` `_run_api_adapters()` (currently a pass)
-
-### Noise reduction
-
-- Add `GARMINVIEW_LOG_LEVEL=WARNING` for `garmindb_cli` subprocess output
-- Filter GarminDB `UnknownEnumValue_13` log lines from the Admin sync log display
+- [x] Noise reduction — filter UnknownEnumValue from sync log; GARMINDB_LOG_LEVEL=WARNING
+- [x] Garmin Connect API adapters — _run_api_adapters() with 10 adapters; credential UI in Admin
+- [x] APScheduler SyncSchedule DB integration — loads cron jobs from DB; hot-reload on schedule update
+- [x] Schema alignment migration (0005) — 5 missing tables created; httpx to main deps; Caddyfile route fix
+- [x] CLAUDE.md update — MariaDB info, FIT patterns, column naming conventions
+- [x] garmindb in Docker — garmindb>=1.1.0 in deps; HealthData volume writable
+- [x] Docker local deploy v0.6.0 — stack running at localhost:8010 against MariaDB
+- [x] Historical monitoring re-ingestion — 2012–2023 backfill run
 
 ---
 
