@@ -215,4 +215,60 @@ class IngestionOrchestrator:
         return [c.key for c in inspect(model).primary_key]
 
     def _run_api_adapters(self, start_date: date, end_date: date) -> None:
-        pass  # populated in Task 11
+        from garminview.models.config import AppConfig
+
+        def _cfg(key: str) -> str | None:
+            row = self._session.get(AppConfig, key)
+            return row.value if row else None
+
+        email = _cfg("garmin_email")
+        password = _cfg("garmin_password")
+        if not email or not password:
+            log.warning("garmin_api_skipped",
+                        reason="garmin_email/garmin_password not set in app_config")
+            return
+
+        try:
+            from garminconnect import Garmin
+            client = Garmin(email, password)
+            client.login()
+        except Exception as exc:
+            log.error("garmin_login_failed", error=str(exc))
+            return
+
+        from garminview.ingestion.api_adapters.hrv import HRVAdapter
+        from garminview.ingestion.api_adapters.training import (
+            TrainingReadinessAdapter, TrainingStatusAdapter,
+        )
+        from garminview.ingestion.api_adapters.body import (
+            VO2MaxAdapter, BodyCompositionAdapter, BloodPressureAdapter,
+            PersonalRecordsAdapter, GearAdapter,
+        )
+        from garminview.ingestion.api_adapters.performance import (
+            RacePredictionsAdapter, LactateThresholdAdapter,
+        )
+
+        api_adapters = [
+            HRVAdapter(client),
+            TrainingReadinessAdapter(client),
+            TrainingStatusAdapter(client),
+            VO2MaxAdapter(client),
+            BodyCompositionAdapter(client),
+            BloodPressureAdapter(client),
+            PersonalRecordsAdapter(client),
+            GearAdapter(client),
+            RacePredictionsAdapter(client),
+            LactateThresholdAdapter(client),
+        ]
+
+        for adapter in api_adapters:
+            sync_log = SyncLogger(self._session, adapter.source_name(),
+                                  "incremental", start_date, end_date)
+            try:
+                count = self._upsert_adapter(adapter, start_date, end_date)
+                sync_log.increment(count)
+                sync_log.success()
+            except Exception as exc:
+                log.error("api_adapter_failed",
+                          source=adapter.source_name(), error=str(exc))
+                sync_log.fail(str(exc))

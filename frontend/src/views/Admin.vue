@@ -46,6 +46,19 @@
           <span class="key">{{ item.key }}</span>
           <span>{{ item.value }}</span>
         </div>
+
+        <h3 style="margin-top:24px;margin-bottom:12px;font-size:0.95rem;font-weight:700">Garmin Connect Credentials</h3>
+        <div class="field-row">
+          <label>Email</label>
+          <input v-model="cfgDraft['garmin_email']" class="input-sm" type="email" placeholder="user@example.com" />
+          <button class="btn-primary" @click="saveConfig('garmin_email')">Save</button>
+        </div>
+        <div class="field-row" style="margin-top:8px">
+          <label>Password</label>
+          <input v-model="cfgDraft['garmin_password']" class="input-sm" type="password" placeholder="••••••••" />
+          <button class="btn-primary" @click="saveConfig('garmin_password')">Save</button>
+        </div>
+        <div v-if="cfgMsg" :class="['status-msg', cfgMsgOk ? 'ok' : 'err']" style="margin-top:8px">{{ cfgMsg }}</div>
       </div>
 
       <!-- Logs tab -->
@@ -381,6 +394,21 @@ const schedules = ref<any[]>([])
 const schedulesLoading = ref(true)
 const config = ref<any[]>([])
 const configLoading = ref(true)
+const cfgDraft = ref<Record<string, string>>({})
+const cfgMsg = ref("")
+const cfgMsgOk = ref(true)
+
+async function saveConfig(key: string) {
+  cfgMsg.value = ""
+  try {
+    await api.put(`/admin/config/${key}`, { value: cfgDraft.value[key] ?? "" })
+    cfgMsg.value = `Saved ${key}.`
+    cfgMsgOk.value = true
+  } catch (e: any) {
+    cfgMsg.value = `Save failed: ${e.response?.data?.detail ?? e.message}`
+    cfgMsgOk.value = false
+  }
+}
 
 // Log history tab
 const logFileLines = ref<string[]>([])
