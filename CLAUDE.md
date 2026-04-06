@@ -65,5 +65,27 @@ uv run python tests/validation/compare.py          # validate against GarminDB
 curl http://localhost:8000/health/daily?days=7     # smoke test API
 ```
 
+## Production Database
+
+MariaDB on external host — connection configured via `GARMINVIEW_DB_URL` in `.env`.
+Format: `user:password@host:port/dbname`
+
+## Key Implementation Patterns
+
+### FIT file timestamp_16 resolution
+When parsing FIT monitoring files, `timestamp_16` values are 16-bit offsets from
+a base `timestamp` record. Always resolve them using the last seen full `timestamp`
+field. Dropping the base timestamp causes ~80% of records to store NULL heart rate.
+See `MonitoringFitAdapter` for the reference implementation.
+
+### GarminDB CLI flags
+Never pass `--analyze` to `garmindb_cli.py` — it re-analyzes the entire DB and
+was ~80% of total sync time. Only use `--all --download --import --latest`.
+
+### Column naming conventions (match live MariaDB)
+- Short: `hr` not `heart_rate`, `lat`/`lon` not `latitude`/`longitude`
+- Speed: `avg_speed` not `avg_speed_ms`
+- Elevation: `ascent_m`/`descent_m` not `total_ascent_m`/`total_descent_m`
+
 # currentDate
 Today's date is 2026-03-12.
