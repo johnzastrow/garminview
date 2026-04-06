@@ -150,6 +150,8 @@ def update_schedule(schedule_id: int, cron: str, enabled: bool,
     row.cron_expression = cron
     row.enabled = enabled
     session.commit()
+    from garminview.core.startup import reload_schedule
+    reload_schedule(schedule_id, session)
     return {"id": schedule_id, "cron": cron, "enabled": enabled}
 
 
