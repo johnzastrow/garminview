@@ -5,7 +5,7 @@ services:
     env_file: .env
     volumes:
       # Raw Garmin data written by garmindb_cli.py on the host (read-only in container)
-      - ${HEALTH_DATA_DIR:-~/HealthData}:/data/HealthData:ro
+      - ${HEALTH_DATA_DIR:-~/HealthData}:/data/HealthData
       # Garmin Connect credentials for garmindb_cli.py (read-only)
       - ${GARMINDB_CONFIG_DIR:-~/.GarminDb}:/root/.GarminDb:ro
       # Persistent sync log
