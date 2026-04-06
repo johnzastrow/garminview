@@ -1,4 +1,5 @@
 import asyncio
+import os
 import shutil
 from collections import deque
 from datetime import datetime, timezone
@@ -55,9 +56,13 @@ async def _run_sync() -> None:
                 "--all", "--download", "--import", "--latest",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                env={**os.environ, "GARMINDB_LOG_LEVEL": "WARNING"},
             )
             async for raw in proc.stdout:
-                _broadcast("log", raw.decode().rstrip())
+                line = raw.decode().rstrip()
+                if "UnknownEnumValue" in line:
+                    continue
+                _broadcast("log", line)
             rc = await proc.wait()
             if rc != 0:
                 _broadcast("error", f"garmindb_cli.py exited with code {rc}")
