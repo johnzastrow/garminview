@@ -4,7 +4,7 @@
     <h2 class="tasks-title">System Activity</h2>
     <div class="tasks-list">
       <component
-        :is="item.link ? 'router-link' : 'div'"
+        :is="item.link ? RouterLink : 'div'"
         v-for="item in items"
         :key="item.item_type + (item.action_key ?? item.timestamp ?? '')"
         :to="item.link ?? undefined"
@@ -27,6 +27,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { RouterLink } from 'vue-router'
 import dayjs from 'dayjs'
 import { api } from '@/api/client'
 
@@ -49,8 +50,8 @@ onMounted(async () => {
   try {
     const res = await api.get('/admin/tasks', { params: { limit: 10 } })
     items.value = res.data
-  } catch {
-    // Panel is supplementary — don't surface fetch errors to the user
+  } catch (err) {
+    if (import.meta.env.DEV) console.warn('[TasksPanel] fetch failed:', err)
   }
 })
 
@@ -62,7 +63,10 @@ function dotClass(item: TaskItem): string {
 function relativeTime(ts: string): string {
   const d = dayjs(ts)
   const diffH = dayjs().diff(d, 'hour')
-  if (diffH < 1) return `${dayjs().diff(d, 'minute')}m ago`
+  if (diffH < 1) {
+    const diffMin = dayjs().diff(d, 'minute')
+    return diffMin < 1 ? 'just now' : `${diffMin}m ago`
+  }
   if (diffH < 24) return `${diffH}h ago`
   const diffD = dayjs().diff(d, 'day')
   if (diffD < 7) return `${diffD}d ago`
@@ -112,6 +116,9 @@ function formatDuration(s: number): string {
 .task-action {
   border-left: 3px solid #D97706;
   background: #FFFBEB;
+}
+
+.task-action[href] {
   cursor: pointer;
 }
 
