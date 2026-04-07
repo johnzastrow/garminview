@@ -75,6 +75,7 @@ export interface CrossRefItem {
 export interface ActalogConfig {
   url: string | null
   email: string | null
+  has_password: boolean
   weight_unit: string | null
   sync_interval_hours: number | null
   sync_enabled: boolean

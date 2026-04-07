@@ -157,8 +157,16 @@
           </div>
           <div class="field-row">
             <label>Password</label>
-            <input v-model="actalogForm.password" class="input-sm" :type="showPw ? 'text' : 'password'" />
+            <input
+              v-model="actalogForm.password"
+              class="input-sm"
+              :type="showPw ? 'text' : 'password'"
+              :placeholder="actalogConfig?.has_password ? 'Leave blank to keep existing' : ''"
+            />
             <button class="link-btn" @click="showPw = !showPw">{{ showPw ? 'Hide' : 'Show' }}</button>
+          </div>
+          <div v-if="actalogConfig?.has_password && !actalogForm.password" class="field-hint">
+            Password is saved. Enter a new password only if you want to change it.
           </div>
           <div class="field-row">
             <label>Weight Unit</label>
@@ -751,6 +759,7 @@ th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; 
 .status-msg.ok { background: #F0FDF4; color: #16A34A; }
 .status-msg.err { background: #FEF2F2; color: #DC2626; }
 .muted { color: var(--muted); }
+.field-hint { font-size: 0.78rem; color: var(--muted); margin: -4px 0 4px 0; }
 
 /* Parser tab */
 .parser-panel { padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }

@@ -439,6 +439,7 @@ def get_actalog_config(
     """Read actalog config from app_config table. Password is never returned."""
     url = _get_cfg(session, "actalog_url")
     email = _get_cfg(session, "actalog_email")
+    stored_password = _get_cfg(session, "actalog_password")
     weight_unit = _get_cfg(session, "actalog_weight_unit")
     sync_interval_raw = _get_cfg(session, "actalog_sync_interval_hours")
     sync_enabled_raw = _get_cfg(session, "actalog_sync_enabled")
@@ -450,6 +451,7 @@ def get_actalog_config(
     return ActalogConfigOut(
         url=url,
         email=email,
+        has_password=bool(stored_password),
         weight_unit=weight_unit,
         sync_interval_hours=sync_interval_hours,
         sync_enabled=sync_enabled,
@@ -467,7 +469,7 @@ def update_admin_config(
     updates = {
         "actalog_url": body.url,
         "actalog_email": body.email,
-        "actalog_password": body.password,
+        "actalog_password": body.password or None,  # blank string = keep existing
         "actalog_weight_unit": body.weight_unit,
         "actalog_sync_interval_hours": str(body.sync_interval_hours) if body.sync_interval_hours is not None else None,
         "actalog_sync_enabled": str(body.sync_enabled).lower() if body.sync_enabled is not None else None,

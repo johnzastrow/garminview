@@ -107,6 +107,7 @@ class CrossRefItem(BaseModel):
 class ActalogConfigOut(BaseModel):
     url: str | None
     email: str | None
+    has_password: bool
     weight_unit: str | None
     sync_interval_hours: int | None
     sync_enabled: bool
