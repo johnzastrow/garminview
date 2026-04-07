@@ -34,7 +34,7 @@ def test_zone_thresholds_ascending():
 # ── filter_outliers ──────────────────────────────────────────────────────────
 
 def test_filter_outliers_removes_spikes():
-    readings = [65, 120, 150, 220, 250, 70]  # 220, 250 above max_hr+10=190
+    readings = [65, 120, 150, 220, 250, 70]  # 220, 250 above hard max_hr=180
     valid, rejected = filter_outliers(readings, resting_hr=60, max_hr=180)
     assert 220 not in valid
     assert 250 not in valid
@@ -42,7 +42,7 @@ def test_filter_outliers_removes_spikes():
 
 
 def test_filter_outliers_removes_low():
-    readings = [30, 40, 100, 150]  # 30, 40 below resting_hr-5=55
+    readings = [30, 40, 100, 150]  # 30, 40 below hard resting_hr=60
     valid, rejected = filter_outliers(readings, resting_hr=60, max_hr=180)
     assert 30 not in valid
     assert 40 not in valid

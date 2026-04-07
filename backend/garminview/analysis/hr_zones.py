@@ -29,13 +29,11 @@ def compute_zone_thresholds(max_hr: int, resting_hr: int) -> dict[int, tuple[int
 def filter_outliers(
     readings: list[int], resting_hr: int, max_hr: int
 ) -> tuple[list[int], int]:
-    """Remove readings outside [resting_hr−5, max_hr+10].
+    """Remove readings outside [resting_hr, max_hr] (profile hard limits).
 
     Returns (valid_readings, rejected_count).
     """
-    lo = resting_hr - 5
-    hi = max_hr + 10
-    valid = [r for r in readings if lo <= r <= hi]
+    valid = [r for r in readings if resting_hr <= r <= max_hr]
     return valid, len(readings) - len(valid)
 
 
@@ -66,19 +64,6 @@ def classify_readings(
 
     return counts
 
-
-def _percentile_97(values: list[int]) -> int:
-    """97th percentile using linear interpolation. Pure Python, no numpy."""
-    if not values:
-        raise ValueError("empty list")
-    s = sorted(values)
-    idx = (len(s) - 1) * 0.97
-    lo = int(idx)
-    hi = lo + 1
-    if hi >= len(s):
-        return s[-1]
-    frac = idx - lo
-    return round(s[lo] + frac * (s[hi] - s[lo]))
 
 
 def compute_daily_hr_zones(session: Session, dates: list[date]) -> None:
@@ -115,7 +100,7 @@ def compute_daily_hr_zones(session: Session, dates: list[date]) -> None:
         raw_max = max(all_readings) if all_readings else None
 
         valid_readings, rejected_count = filter_outliers(all_readings, resting_hr, max_hr)
-        valid_max = _percentile_97(valid_readings) if valid_readings else None
+        valid_max = max(valid_readings) if valid_readings else None
         zone_counts = (
             classify_readings(valid_readings, thresholds)
             if valid_readings
