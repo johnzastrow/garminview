@@ -210,6 +210,19 @@ def update_profile(
     if resting_hr is not None: p.resting_hr = resting_hr
     if max_hr_override is not None: p.max_hr_override = max_hr_override if max_hr_override > 0 else None
     session.commit()
+
+    # If HR-relevant fields changed, recompute zone data for the last 90 days
+    if resting_hr is not None or max_hr_override is not None:
+        try:
+            from datetime import date, timedelta
+            from garminview.analysis.hr_zones import compute_daily_hr_zones
+            today = date.today()
+            cutoff = today - timedelta(days=90)
+            dates = [cutoff + timedelta(days=i) for i in range((today - cutoff).days + 1)]
+            compute_daily_hr_zones(session, dates)
+        except Exception:
+            pass  # non-fatal: zones will be recomputed on next startup backfill
+
     return get_profile(session)
 
 

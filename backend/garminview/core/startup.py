@@ -133,6 +133,29 @@ def reload_schedule(schedule_id: int, session) -> None:
         _register_job(row)
 
 
+def _backfill_hr_zones(session_factory) -> None:
+    """Compute daily_hr_zones for any missing dates in the last 90 days."""
+    from datetime import date, timedelta
+    from garminview.analysis.hr_zones import compute_daily_hr_zones
+    from garminview.models.health import DailyHRZones
+
+    today = date.today()
+    cutoff = today - timedelta(days=90)
+    all_dates = [cutoff + timedelta(days=i) for i in range((today - cutoff).days + 1)]
+
+    with session_factory() as session:
+        existing = {
+            row.date
+            for row in session.query(DailyHRZones.date)
+            .filter(DailyHRZones.date >= cutoff)
+            .all()
+        }
+        missing = [d for d in all_dates if d not in existing]
+        if missing:
+            _log.info("Backfilling daily_hr_zones for %d dates", len(missing))
+            compute_daily_hr_zones(session, missing)
+
+
 def start_scheduler(session_factory) -> None:
     global _scheduler, _session_factory
     _session_factory = session_factory
@@ -158,6 +181,12 @@ def start_scheduler(session_factory) -> None:
 
     _scheduler.start()
     _log.info("APScheduler started")
+
+    # Backfill missing daily HR zones for last 90 days
+    try:
+        _backfill_hr_zones(session_factory)
+    except Exception as exc:
+        _log.warning("HR zones backfill failed: %s", exc)
 
 
 def stop_scheduler() -> None:
