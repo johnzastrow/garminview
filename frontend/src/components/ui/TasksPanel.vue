@@ -18,7 +18,7 @@
         <div v-if="item.item_type === 'sync'" class="task-meta">
           <span v-if="item.timestamp" class="task-time">{{ relativeTime(item.timestamp) }}</span>
           <span v-if="item.duration_s != null" class="task-dur">{{ formatDuration(item.duration_s) }}</span>
-          <span v-if="item.records_upserted" class="task-records">{{ item.records_upserted.toLocaleString() }} records</span>
+          <span v-if="item.records_upserted != null" class="task-records">{{ item.records_upserted.toLocaleString() }} records</span>
         </div>
       </component>
     </div>
