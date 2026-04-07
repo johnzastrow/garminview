@@ -7,6 +7,8 @@
       </div>
     </header>
 
+    <TasksPanel />
+
     <div v-if="loading" class="loading">
       <div class="spinner"></div>
       <span>Loading data…</span>
@@ -114,6 +116,7 @@ import { computed } from 'vue'
 import dayjs from 'dayjs'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import MetricCard from '@/components/ui/MetricCard.vue'
+import TasksPanel from '@/components/ui/TasksPanel.vue'
 import TimeSeriesChart from '@/components/charts/TimeSeriesChart.vue'
 import HrZonesChart from '@/components/charts/HrZonesChart.vue'
 import type { HRZonesDay } from '@/components/charts/HrZonesChart.vue'
