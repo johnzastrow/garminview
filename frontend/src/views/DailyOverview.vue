@@ -101,6 +101,7 @@
             <div class="spinner"></div>
             <span>Loading zone data…</span>
           </div>
+          <div v-else-if="hrZonesError" class="error-msg">{{ hrZonesError }}</div>
           <HrZonesChart v-else :data="hrZonesData ?? []" />
         </div>
       </div>
@@ -133,7 +134,7 @@ interface DailySummary {
 
 const store = useDateRangeStore()
 const { data, loading, error } = useMetricData<DailySummary[]>('/health/daily')
-const { data: hrZonesData, loading: hrZonesLoading } = useMetricData<HRZonesDay[]>('/health/hr-zones')
+const { data: hrZonesData, loading: hrZonesLoading, error: hrZonesError } = useMetricData<HRZonesDay[]>('/health/hr-zones')
 
 const today = computed(() => data.value?.[data.value.length - 1] ?? null)
 
