@@ -659,12 +659,56 @@ def get_tasks(
     except OperationalError:
         _log.warning("user_profile table not ready; skipping profile_setup check")
 
-    # Anomalies action
+    # Anomalies action: count live-detected anomalies not yet user-excluded
     try:
-        anomaly_count = session.query(DataQualityFlag).filter(
-            DataQualityFlag.flag_type.in_(["missing", "implausible", "duplicate", "gap"]),
-            DataQualityFlag.excluded == False,  # noqa: E712
-        ).count()
+        from garminview.models.monitoring import MonitoringHeartRate
+        from garminview.models.activities import Activity
+        from garminview.models.health import DailySummary as _DailySummary
+        from sqlalchemy import func, cast, String
+
+        # Build exclusion sets by source table
+        _excl_q = session.query(DataQualityFlag.record_id, DataQualityFlag.source_table).filter(
+            DataQualityFlag.flag_type == "user_exclusion"
+        ).all()
+        excl_mhr = {r[0] for r in _excl_q if r[1] == "monitoring_heart_rate"}
+        excl_act = {r[0] for r in _excl_q if r[1] == "activities"}
+        excl_daily = {r[0] for r in _excl_q if r[1] == "daily_summary"}
+
+        # Count HR spikes (> 210 bpm) not excluded
+        spike_q = session.query(func.count(MonitoringHeartRate.timestamp)).filter(
+            MonitoringHeartRate.hr > 210
+        )
+        if excl_mhr:
+            spike_q = spike_q.filter(
+                ~cast(MonitoringHeartRate.timestamp, String).in_(excl_mhr)
+            )
+
+        # Count activity max_hr > 220 not excluded
+        bad_act_q = session.query(func.count(Activity.activity_id)).filter(
+            Activity.max_hr > 220,
+            Activity.max_hr.isnot(None),
+        )
+        if excl_act:
+            bad_act_q = bad_act_q.filter(
+                ~Activity.activity_id.in_(
+                    [int(i) for i in excl_act if i and i.isdigit()]
+                )
+            )
+
+        # Count implausible step counts (> 80,000) not excluded
+        high_steps_q = session.query(func.count(_DailySummary.date)).filter(
+            _DailySummary.steps > 80000
+        )
+        if excl_daily:
+            high_steps_q = high_steps_q.filter(
+                ~cast(_DailySummary.date, String).in_(excl_daily)
+            )
+
+        anomaly_count = (
+            (spike_q.scalar() or 0)
+            + (bad_act_q.scalar() or 0)
+            + (high_steps_q.scalar() or 0)
+        )
         if anomaly_count > 0:
             items.append(TaskItem(
                 item_type="action",
@@ -674,7 +718,7 @@ def get_tasks(
                 count=anomaly_count,
             ))
     except OperationalError:
-        _log.warning("data_quality_flags table not ready; skipping anomaly check")
+        _log.warning("anomaly detection tables not ready; skipping anomaly check")
 
     # Actalog review action
     try:

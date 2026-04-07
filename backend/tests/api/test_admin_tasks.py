@@ -11,7 +11,6 @@ from garminview.api.main import create_app
 from garminview.api import deps
 from garminview.models.sync import SyncLog
 from garminview.models.config import UserProfile, AppConfig
-from garminview.models.assessments import DataQualityFlag
 from garminview.models.actalog import ActalogNoteParse, ActalogWorkout
 
 
@@ -78,16 +77,12 @@ def test_complete_profile_no_profile_action(make_client):
 
 
 def test_anomalies_action_when_unreviewed_flags_exist(make_client):
-    # Unreviewed system flag → anomalies action item appears with correct count
+    # Anomalous monitoring HR reading (> 210 bpm, not excluded) → anomalies action appears
     def seed(s):
         s.add(UserProfile(id=1, max_hr_override=180, resting_hr=60))
-        from datetime import date
-        s.add(DataQualityFlag(
-            date=date(2026, 3, 12),
-            metric="heart_rate",
-            flag_type="implausible",
-            excluded=False,
-        ))
+        from datetime import datetime
+        from garminview.models.monitoring import MonitoringHeartRate
+        s.add(MonitoringHeartRate(timestamp=datetime(2026, 3, 12, 10, 0, 0), hr=215))
     client = make_client(seed)
     resp = client.get("/admin/tasks")
     assert resp.status_code == 200
