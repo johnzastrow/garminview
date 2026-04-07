@@ -10,6 +10,9 @@ from garminview.analysis.athlete_metrics import compute_athlete_metrics
 from garminview.models.sync import SyncLog, SchemaVersion
 from garminview.api.deps import get_db
 
+import logging
+_log = logging.getLogger(__name__)
+
 
 def _migrate_anomaly_columns(session: Session) -> None:
     """Add anomaly exclusion columns to data_quality_flags if not present."""
@@ -220,8 +223,8 @@ def update_profile(
             cutoff = today - timedelta(days=90)
             dates = [cutoff + timedelta(days=i) for i in range((today - cutoff).days + 1)]
             compute_daily_hr_zones(session, dates)
-        except Exception:
-            pass  # non-fatal: zones will be recomputed on next startup backfill
+        except Exception as exc:
+            _log.warning("HR zones recompute after profile update failed: %s", exc)
 
     return get_profile(session)
 
