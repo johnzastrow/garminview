@@ -654,7 +654,7 @@ def get_tasks(
                 action_key="profile_setup",
                 title="Set resting HR and max HR",
                 detail="Required for heart rate zone analysis",
-                link="/admin",
+                link="/profile",
             ))
     except OperationalError:
         _log.warning("user_profile table not ready; skipping profile_setup check")

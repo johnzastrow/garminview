@@ -1,7 +1,7 @@
 <template>
   <div v-if="!hasData" class="empty-state">
     Set your Max HR and Resting HR in
-    <router-link to="/admin">Profile</router-link>
+    <router-link to="/profile">Profile</router-link>
     to enable zone analysis.
   </div>
   <v-chart v-else :option="option" autoresize style="height: 320px" />
