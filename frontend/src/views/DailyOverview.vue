@@ -93,6 +93,16 @@
             :series="energySeries"
           />
         </div>
+
+        <div class="chart-block">
+          <h2 class="chart-title">Heart Rate Zones</h2>
+          <p class="chart-desc">Daily time spent in each HR zone computed from minute-by-minute monitoring data using the Karvonen (HR Reserve) method. Zone 2 (aerobic base) builds endurance; sustained Zone 4–5 time signals high-intensity effort. The solid blue line shows the day's peak valid HR; the dashed red line shows the raw max — when they diverge, outlier readings were detected and excluded (hover for details).</p>
+          <div v-if="hrZonesLoading" class="loading">
+            <div class="spinner"></div>
+            <span>Loading zone data…</span>
+          </div>
+          <HrZonesChart v-else :data="hrZonesData ?? []" />
+        </div>
       </div>
     </template>
   </div>
@@ -104,6 +114,8 @@ import dayjs from 'dayjs'
 import DateRangePicker from '@/components/ui/DateRangePicker.vue'
 import MetricCard from '@/components/ui/MetricCard.vue'
 import TimeSeriesChart from '@/components/charts/TimeSeriesChart.vue'
+import HrZonesChart from '@/components/charts/HrZonesChart.vue'
+import type { HRZonesDay } from '@/components/charts/HrZonesChart.vue'
 import { useMetricData } from '@/composables/useMetricData'
 import { useDateRangeStore } from '@/stores/dateRange'
 
@@ -121,6 +133,7 @@ interface DailySummary {
 
 const store = useDateRangeStore()
 const { data, loading, error } = useMetricData<DailySummary[]>('/health/daily')
+const { data: hrZonesData, loading: hrZonesLoading } = useMetricData<HRZonesDay[]>('/health/hr-zones')
 
 const today = computed(() => data.value?.[data.value.length - 1] ?? null)
 
