@@ -3,9 +3,11 @@ from datetime import datetime, timezone
 from typing import Annotated
 from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from garminview.models.config import AppConfig, SyncSchedule, UserProfile
 from garminview.models.assessments import DataQualityFlag
+from garminview.models.actalog import ActalogNoteParse
 from garminview.analysis.athlete_metrics import compute_athlete_metrics
 from garminview.models.sync import SyncLog, SchemaVersion
 from garminview.api.deps import get_db
@@ -643,66 +645,77 @@ def get_tasks(
 
     # --- Action items ---
 
-    # Profile setup: alert if resting_hr or max_hr_override is missing
-    p = session.query(UserProfile).first()
-    if not p or p.resting_hr is None or p.max_hr_override is None:
-        items.append(TaskItem(
-            item_type="action",
-            action_key="profile_setup",
-            title="Set resting HR and max HR",
-            detail="Required for heart rate zone analysis",
-            link="/admin",
-        ))
-
-    # Anomalies: count system-generated flags not yet user-excluded
-    anomaly_count = session.query(DataQualityFlag).filter(
-        DataQualityFlag.flag_type.in_(["missing", "implausible", "duplicate", "gap"]),
-        DataQualityFlag.excluded == False,  # noqa: E712
-    ).count()
-    if anomaly_count > 0:
-        items.append(TaskItem(
-            item_type="action",
-            action_key="anomalies",
-            title=f"{anomaly_count} unreviewed data anomalies",
-            link="/admin",
-            count=anomaly_count,
-        ))
-
-    # Actalog review: only shown when actalog sync is enabled
-    actalog_row = session.get(AppConfig, "actalog_sync_enabled")
-    if actalog_row and actalog_row.value and actalog_row.value.lower() in ("1", "true", "yes"):
-        from garminview.models.actalog import ActalogNoteParse
-        pending = session.query(ActalogNoteParse).filter(
-            ActalogNoteParse.parse_status == "pending"
-        ).count()
-        if pending > 0:
+    # Profile setup action
+    try:
+        p = session.query(UserProfile).first()
+        if not p or p.resting_hr is None or p.max_hr_override is None:
             items.append(TaskItem(
                 item_type="action",
-                action_key="actalog_review",
-                title=f"{pending} workout notes awaiting review",
-                link="/actalog",
-                count=pending,
+                action_key="profile_setup",
+                title="Set resting HR and max HR",
+                detail="Required for heart rate zone analysis",
+                link="/admin",
             ))
+    except OperationalError:
+        _log.warning("user_profile table not ready; skipping profile_setup check")
 
-    # --- Sync history ---
-    sync_rows = (
-        session.query(SyncLog)
-        .order_by(SyncLog.started_at.desc())
-        .limit(limit)
-        .all()
-    )
-    for row in sync_rows:
-        duration_s = None
-        if row.started_at and row.finished_at:
-            duration_s = (row.finished_at - row.started_at).total_seconds()
-        items.append(TaskItem(
-            item_type="sync",
-            title=_SOURCE_LABELS.get(row.source, row.source),
-            detail=row.error_message[:80] if row.error_message else row.source,
-            timestamp=row.started_at,
-            duration_s=duration_s,
-            records_upserted=row.records_upserted,
-            status=row.status,
-        ))
+    # Anomalies action
+    try:
+        anomaly_count = session.query(DataQualityFlag).filter(
+            DataQualityFlag.flag_type.in_(["missing", "implausible", "duplicate", "gap"]),
+            DataQualityFlag.excluded == False,  # noqa: E712
+        ).count()
+        if anomaly_count > 0:
+            items.append(TaskItem(
+                item_type="action",
+                action_key="anomalies",
+                title=f"{anomaly_count} unreviewed data anomalies",
+                link="/admin",
+                count=anomaly_count,
+            ))
+    except OperationalError:
+        _log.warning("data_quality_flags table not ready; skipping anomaly check")
+
+    # Actalog review action
+    try:
+        actalog_row = session.get(AppConfig, "actalog_sync_enabled")
+        if actalog_row and actalog_row.value and actalog_row.value.lower() in ("1", "true", "yes"):
+            pending = session.query(ActalogNoteParse).filter(
+                ActalogNoteParse.parse_status == "pending"
+            ).count()
+            if pending > 0:
+                items.append(TaskItem(
+                    item_type="action",
+                    action_key="actalog_review",
+                    title=f"{pending} workout notes awaiting review",
+                    link="/actalog",
+                    count=pending,
+                ))
+    except OperationalError:
+        _log.warning("actalog tables not ready; skipping actalog_review check")
+
+    # Sync history
+    try:
+        sync_rows = (
+            session.query(SyncLog)
+            .order_by(SyncLog.started_at.desc())
+            .limit(limit)
+            .all()
+        )
+        for row in sync_rows:
+            duration_s = None
+            if row.started_at and row.finished_at:
+                duration_s = (row.finished_at - row.started_at).total_seconds()
+            items.append(TaskItem(
+                item_type="sync",
+                title=_SOURCE_LABELS.get(row.source, row.source),
+                detail=row.error_message[:80] if row.error_message else None,
+                timestamp=row.started_at,
+                duration_s=duration_s,
+                records_upserted=row.records_upserted,
+                status=row.status,
+            ))
+    except OperationalError:
+        _log.warning("sync_log table not ready; skipping sync history")
 
     return items
