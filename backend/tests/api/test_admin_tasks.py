@@ -77,6 +77,28 @@ def test_complete_profile_no_profile_action(make_client):
     assert "profile_setup" not in action_keys
 
 
+def test_anomalies_action_when_unreviewed_flags_exist(make_client):
+    # Unreviewed system flag → anomalies action item appears with correct count
+    def seed(s):
+        s.add(UserProfile(id=1, max_hr_override=180, resting_hr=60))
+        from datetime import date
+        s.add(DataQualityFlag(
+            date=date(2026, 3, 12),
+            metric="heart_rate",
+            flag_type="implausible",
+            excluded=False,
+        ))
+    client = make_client(seed)
+    resp = client.get("/admin/tasks")
+    assert resp.status_code == 200
+    items = resp.json()
+    action_keys = [i["action_key"] for i in items if i["item_type"] == "action"]
+    assert "anomalies" in action_keys
+    anomaly_item = next(i for i in items if i.get("action_key") == "anomalies")
+    assert anomaly_item["count"] == 1
+    assert anomaly_item["link"] == "/admin"
+
+
 def test_sync_history_appears(make_client):
     # Seeded sync_log row appears as a sync item with correct fields
     def seed(s):
@@ -106,6 +128,22 @@ def test_sync_duration_computed(make_client):
     assert syncs[0]["duration_s"] == pytest.approx(10.0)
 
 
+def test_limit_caps_sync_history(make_client):
+    # limit=2 with 3 sync rows → only 2 sync items returned
+    def seed(s):
+        s.add(UserProfile(id=1, max_hr_override=180, resting_hr=60))
+        for i in range(3):
+            s.add(_sync_row(
+                started_at=datetime(2026, 3, 12, 10, i, 0),
+                finished_at=datetime(2026, 3, 12, 10, i, 5),
+            ))
+    client = make_client(seed)
+    resp = client.get("/admin/tasks", params={"limit": 2})
+    assert resp.status_code == 200
+    syncs = [i for i in resp.json() if i["item_type"] == "sync"]
+    assert len(syncs) == 2
+
+
 def test_running_sync_has_null_duration(make_client):
     # finished_at = None → duration_s = None, status = "running"
     def seed(s):
@@ -130,9 +168,10 @@ def test_actalog_review_when_pending_and_enabled(make_client):
     client = make_client(seed)
     resp = client.get("/admin/tasks")
     assert resp.status_code == 200
-    action_keys = [i["action_key"] for i in resp.json() if i["item_type"] == "action"]
+    items = resp.json()
+    action_keys = [i["action_key"] for i in items if i["item_type"] == "action"]
     assert "actalog_review" in action_keys
-    review = next(i for i in resp.json() if i.get("action_key") == "actalog_review")
+    review = next(i for i in items if i.get("action_key") == "actalog_review")
     assert review["count"] == 1
     assert review["link"] == "/actalog"
 
