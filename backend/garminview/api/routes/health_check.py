@@ -4,9 +4,9 @@ from typing import Annotated
 from collections import defaultdict
 from sqlalchemy.orm import Session
 
-from garminview.models.health import DailySummary, Sleep
+from garminview.models.health import DailySummary, Sleep, DailyHRZones
 from garminview.models.monitoring import MonitoringHeartRate
-from garminview.api.schemas.health import DailySummaryResponse, SleepResponse
+from garminview.api.schemas.health import DailySummaryResponse, SleepResponse, HRZonesDayResponse
 from garminview.api.deps import get_db
 
 router = APIRouter()
@@ -80,3 +80,17 @@ def intraday_hr(
         }
         for slot, hrs in sorted(buckets.items())
     ]
+
+
+@router.get("/hr-zones", response_model=list[HRZonesDayResponse])
+def daily_hr_zones(
+    session: Annotated[Session, Depends(get_db)],
+    start: date = Query(default=None),
+    end: date = Query(default=None),
+):
+    q = session.query(DailyHRZones)
+    if start:
+        q = q.filter(DailyHRZones.date >= start)
+    if end:
+        q = q.filter(DailyHRZones.date <= end)
+    return q.order_by(DailyHRZones.date).all()

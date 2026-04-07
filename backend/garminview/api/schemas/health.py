@@ -36,3 +36,17 @@ class SleepResponse(BaseModel):
     avg_spo2: float | None = None
 
     model_config = {"from_attributes": True}
+
+
+class HRZonesDayResponse(BaseModel):
+    date: date
+    z2_min: int | None = None
+    z3_min: int | None = None
+    z4_min: int | None = None
+    z5_min: int | None = None
+    valid_max_hr: int | None = None
+    raw_max_hr: int | None = None
+    rejected_count: int | None = None
+    total_count: int | None = None
+
+    model_config = {"from_attributes": True}
