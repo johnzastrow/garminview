@@ -71,3 +71,19 @@ class RestingHeartRate(Base):
     __tablename__ = "resting_heart_rate"
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     resting_hr: Mapped[int | None] = mapped_column(SmallInteger)
+
+
+class DailyHRZones(Base):
+    __tablename__ = "daily_hr_zones"
+    date: Mapped[date] = mapped_column(Date, primary_key=True)
+    z1_min: Mapped[int | None] = mapped_column(SmallInteger)
+    z2_min: Mapped[int | None] = mapped_column(SmallInteger)
+    z3_min: Mapped[int | None] = mapped_column(SmallInteger)
+    z4_min: Mapped[int | None] = mapped_column(SmallInteger)
+    z5_min: Mapped[int | None] = mapped_column(SmallInteger)
+    valid_max_hr: Mapped[int | None] = mapped_column(SmallInteger)
+    raw_max_hr: Mapped[int | None] = mapped_column(SmallInteger)
+    rejected_count: Mapped[int | None] = mapped_column(SmallInteger)
+    total_count: Mapped[int | None] = mapped_column(SmallInteger)
+    zone_method: Mapped[str | None] = mapped_column(String(20))
+    computed_at: Mapped[datetime | None] = mapped_column(DateTime)
