@@ -48,4 +48,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_table("daily_hr_zones")
+    bind = op.get_bind()
+    if _table_exists(bind, "daily_hr_zones"):
+        op.drop_table("daily_hr_zones")

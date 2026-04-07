@@ -1,5 +1,5 @@
 from garminview.models.health import (
-    DailySummary, Sleep, SleepEvent, Weight, Stress, RestingHeartRate
+    DailySummary, Sleep, SleepEvent, Weight, Stress, RestingHeartRate, DailyHRZones
 )
 from garminview.models.monitoring import (
     MonitoringHeartRate, MonitoringIntensity, MonitoringSteps,
@@ -32,7 +32,7 @@ from garminview.models.actalog import (
 )
 
 __all__ = [
-    "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate",
+    "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate", "DailyHRZones",
     "MonitoringHeartRate", "MonitoringIntensity", "MonitoringSteps",
     "MonitoringRespiration", "MonitoringPulseOx", "MonitoringClimb",
     "Activity", "ActivityLap", "ActivityRecord", "StepsActivity", "ActivityHRZone",
