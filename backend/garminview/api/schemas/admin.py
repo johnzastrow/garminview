@@ -3,7 +3,7 @@ from datetime import datetime
 
 
 class TaskItem(BaseModel):
-    type: str               # "sync" | "action"
+    item_type: str          # "sync" | "action"
     action_key: str | None = None   # "profile_setup" | "anomalies" | "actalog_review"
     title: str
     detail: str | None = None
@@ -11,5 +11,5 @@ class TaskItem(BaseModel):
     count: int | None = None        # for action items with a count
     timestamp: datetime | None = None   # sync start time; null for action items
     duration_s: float | None = None     # finished_at - started_at
-    records: int | None = None          # records_upserted from sync_log
+    records_upserted: int | None = None # records_upserted from sync_log
     status: str | None = None           # "success" | "error" | "running"
