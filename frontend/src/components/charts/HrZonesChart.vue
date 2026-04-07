@@ -47,6 +47,7 @@ const props = defineProps<{ data: HRZonesDay[] }>()
 const hasData = computed(() => props.data.length > 0)
 
 const dates = computed(() => props.data.map((d) => d.date))
+const dataByDate = computed(() => new Map(props.data.map((d) => [d.date, d])))
 
 const option = computed(() => ({
   tooltip: {
@@ -66,14 +67,13 @@ const option = computed(() => ({
         day: "numeric",
         year: "numeric",
       })
-      const dayIdx = dates.value.indexOf(params[0].axisValue)
-      const row = dayIdx >= 0 ? props.data[dayIdx] : null
+      const row = dataByDate.value.get(params[0].axisValue) ?? null
       const rejected = row?.rejected_count ?? 0
       const total = row?.total_count ?? 0
       const rawMax = row?.raw_max_hr
       const rejectedNote =
         rejected > 0
-          ? `<div style="color:#f87171;margin-top:4px;font-size:11px">⚠ ${rejected}/${total} readings rejected (raw max: ${rawMax} bpm)</div>`
+          ? `<div style="color:#f87171;margin-top:4px;font-size:11px">[!] ${rejected}/${total} readings rejected (raw max: ${rawMax} bpm)</div>`
           : ""
       const bars = params
         .filter((p) => p.seriesType === "bar" && p.value?.[1] != null && p.value[1] > 0)
@@ -178,8 +178,7 @@ const option = computed(() => ({
       data: props.data.map((d) => [d.date, d.raw_max_hr]),
       symbol: (value: [string, number | null], _params: any) => {
         // Diamond on spike days (gap > 10 bpm)
-        const dayIdx = dates.value.indexOf(value[0])
-        const row = dayIdx >= 0 ? props.data[dayIdx] : null
+        const row = dataByDate.value.get(value[0]) ?? null
         if (
           row?.raw_max_hr != null &&
           row?.valid_max_hr != null &&
