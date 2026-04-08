@@ -66,6 +66,7 @@ class BodyCompositionAdapter(BaseAPIAdapter):
             "metabolic_age": raw.get("metabolicAge"),
             "visceral_fat": raw.get("visceralFat"),
             "physique_rating": raw.get("physiqueRating"),
+            "source": "garmin",
         }
 
 

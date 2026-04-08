@@ -33,4 +33,5 @@ class WeightAdapter(BaseAdapter):
             yield {
                 "date": date.fromisoformat(d),
                 "weight_kg": weight,
+                "source": "garmin",
             }
