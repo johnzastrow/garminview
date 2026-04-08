@@ -27,15 +27,47 @@
       <div v-if="activeTab === 'schedules'">
         <h2>Sync Schedules</h2>
         <div v-if="schedulesLoading">Loading...</div>
-        <table v-else>
-          <thead><tr><th>Source</th><th>Cron</th><th>Enabled</th><th>Last Run</th></tr></thead>
-          <tbody>
-            <tr v-for="s in schedules" :key="s.id">
-              <td>{{ s.source }}</td><td>{{ s.cron }}</td>
-              <td>{{ s.enabled ? "Yes" : "No" }}</td><td>{{ s.last_run ?? "Never" }}</td>
-            </tr>
-          </tbody>
-        </table>
+        <template v-else>
+          <table v-if="schedules.length" style="width:100%;border-collapse:collapse;margin-bottom:20px">
+            <thead><tr style="text-align:left;font-size:0.78rem;color:var(--muted)">
+              <th style="padding:4px 8px">Source</th>
+              <th style="padding:4px 8px">Cron</th>
+              <th style="padding:4px 8px">Enabled</th>
+              <th style="padding:4px 8px">Last Run</th>
+              <th style="padding:4px 8px"></th>
+            </tr></thead>
+            <tbody>
+              <tr v-for="s in schedules" :key="s.id" style="border-top:1px solid var(--border);font-size:0.875rem">
+                <td style="padding:6px 8px">{{ s.source }}</td>
+                <td style="padding:6px 8px;font-family:monospace">{{ s.cron }}</td>
+                <td style="padding:6px 8px">{{ s.enabled ? "Yes" : "No" }}</td>
+                <td style="padding:6px 8px;color:var(--muted)">{{ s.last_run ?? "Never" }}</td>
+                <td style="padding:6px 8px">
+                  <button class="link-btn" style="color:#DC2626" @click="deleteSchedule(s.id)">Delete</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="muted" style="margin-bottom:16px;font-size:0.875rem">No schedules configured. Add one below to enable automated syncing.</p>
+
+          <h3 style="font-size:0.875rem;font-weight:700;margin-bottom:12px">Add Schedule</h3>
+          <div class="field-row">
+            <label>Source</label>
+            <select v-model="newSchedule.source" class="select-sm">
+              <option value="garminview">garminview (full Garmin sync)</option>
+              <option value="actalog">actalog</option>
+            </select>
+          </div>
+          <div class="field-row">
+            <label>Cron</label>
+            <input v-model="newSchedule.cron" class="input-sm" placeholder="0 3 * * *" style="font-family:monospace" />
+            <span class="muted" style="font-size:0.78rem">e.g. <code>0 3 * * *</code> = daily at 3am</span>
+          </div>
+          <div class="action-row">
+            <button class="btn-primary" @click="addSchedule">Add Schedule</button>
+          </div>
+          <div v-if="scheduleMsg" :class="['status-msg', scheduleMsgOk ? 'ok' : 'err']">{{ scheduleMsg }}</div>
+        </template>
       </div>
 
       <!-- Config tab -->
@@ -401,9 +433,38 @@ watch(activeTab, (tab, prev) => {
   }
 })
 
-// --- Other tabs ---
+// --- Schedules ---
 const schedules = ref<any[]>([])
 const schedulesLoading = ref(true)
+const newSchedule = ref({ source: "garminview", cron: "0 3 * * *" })
+const scheduleMsg = ref("")
+const scheduleMsgOk = ref(true)
+
+async function addSchedule() {
+  scheduleMsg.value = ""
+  try {
+    await api.post("/admin/schedules", null, {
+      params: { source: newSchedule.value.source, cron: newSchedule.value.cron, enabled: true },
+    })
+    const r = await api.get("/admin/schedules")
+    schedules.value = r.data.schedules ?? []
+    scheduleMsg.value = "Schedule added."
+    scheduleMsgOk.value = true
+  } catch (e: any) {
+    scheduleMsg.value = `Failed: ${e.response?.data?.detail ?? e.message}`
+    scheduleMsgOk.value = false
+  }
+}
+
+async function deleteSchedule(id: number) {
+  try {
+    await api.delete(`/admin/schedules/${id}`)
+    schedules.value = schedules.value.filter(s => s.id !== id)
+  } catch (e: any) {
+    scheduleMsg.value = `Delete failed: ${e.response?.data?.detail ?? e.message}`
+    scheduleMsgOk.value = false
+  }
+}
 const config = ref<any[]>([])
 const configLoading = ref(true)
 const cfgDraft = ref<Record<string, string>>({})

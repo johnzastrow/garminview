@@ -147,6 +147,20 @@ def list_schedules(session: Annotated[Session, Depends(get_db)]):
                            "enabled": r.enabled, "last_run": r.last_run} for r in rows]}
 
 
+@router.post("/schedules")
+def create_schedule(source: str, cron: str,
+                    session: Annotated[Session, Depends(get_db)],
+                    enabled: bool = True):
+    if source not in ("garminview", "actalog"):
+        raise HTTPException(400, "source must be 'garminview' or 'actalog'")
+    row = SyncSchedule(source=source, mode="full", cron_expression=cron, enabled=enabled)
+    session.add(row)
+    session.commit()
+    from garminview.core.startup import reload_schedule
+    reload_schedule(row.id, session)
+    return {"id": row.id, "source": source, "cron": cron, "enabled": enabled}
+
+
 @router.put("/schedules/{schedule_id}")
 def update_schedule(schedule_id: int, cron: str, enabled: bool,
                     session: Annotated[Session, Depends(get_db)]):
@@ -159,6 +173,21 @@ def update_schedule(schedule_id: int, cron: str, enabled: bool,
     from garminview.core.startup import reload_schedule
     reload_schedule(schedule_id, session)
     return {"id": schedule_id, "cron": cron, "enabled": enabled}
+
+
+@router.delete("/schedules/{schedule_id}")
+def delete_schedule(schedule_id: int, session: Annotated[Session, Depends(get_db)]):
+    row = session.get(SyncSchedule, schedule_id)
+    if not row:
+        raise HTTPException(404, "Schedule not found")
+    # Disable in scheduler first
+    row.enabled = False
+    session.commit()
+    from garminview.core.startup import reload_schedule
+    reload_schedule(schedule_id, session)
+    session.delete(row)
+    session.commit()
+    return {"ok": True}
 
 
 @router.get("/schema-version")
