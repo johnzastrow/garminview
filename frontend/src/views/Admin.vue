@@ -169,9 +169,26 @@
             </div>
           </div>
           <div v-else class="no-errors">✓ No parse errors</div>
+
+          <div v-if="uploadResult.backfill" class="backfill-result">
+            <span class="backfill-label">Backfilled to main tables:</span>
+            <span class="backfill-count">{{ uploadResult.backfill.weight_rows }} weight rows</span>
+            <span class="backfill-sep">·</span>
+            <span class="backfill-count">{{ uploadResult.backfill.body_fat_rows }} body fat rows</span>
+          </div>
         </div>
 
         <div v-if="uploadError" class="upload-error">{{ uploadError }}</div>
+
+        <div class="backfill-section">
+          <button class="btn-secondary" :disabled="backfilling" @click="runBackfill">
+            {{ backfilling ? 'Backfilling…' : 'Backfill from MFP' }}
+          </button>
+          <span v-if="backfillResult" class="backfill-inline">
+            {{ backfillResult.weight_rows }} weight · {{ backfillResult.body_fat_rows }} body fat rows written
+          </span>
+          <span v-if="backfillError" class="upload-error">{{ backfillError }}</span>
+        </div>
       </div>
 
       <!-- Actalog Integration tab -->
@@ -497,9 +514,28 @@ const uploadResult = ref<{
   measurements: number
   exercises: number
   errors: { file: string; row: number; message: string }[]
+  backfill?: { weight_rows: number; body_fat_rows: number }
 } | null>(null)
 const uploadError = ref<string | null>(null)
 const showErrors = ref(false)
+
+const backfilling = ref(false)
+const backfillResult = ref<{ weight_rows: number; body_fat_rows: number } | null>(null)
+const backfillError = ref<string | null>(null)
+
+async function runBackfill() {
+  backfilling.value = true
+  backfillResult.value = null
+  backfillError.value = null
+  try {
+    const resp = await api.post('/admin/backfill/mfp')
+    backfillResult.value = resp.data
+  } catch (e: any) {
+    backfillError.value = e.response?.data?.detail ?? e.message ?? 'Backfill failed'
+  } finally {
+    backfilling.value = false
+  }
+}
 
 function onFileChange(e: Event) {
   const input = e.target as HTMLInputElement
@@ -800,6 +836,24 @@ th, td { padding: 8px 12px; text-align: left; border-bottom: 1px solid #e5e7eb; 
 .error-msg { color: #DC2626; }
 .no-errors { font-size: 0.82rem; color: #16A34A; font-weight: 600; }
 .upload-error { margin-top: 12px; padding: 10px 14px; background: #FEF2F2; border-radius: 8px; color: #DC2626; font-size: 0.83rem; }
+.backfill-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.backfill-result {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin-top: 8px;
+}
+.backfill-label { font-weight: 600; color: var(--text); }
+.backfill-sep { color: var(--border); }
+.backfill-inline { font-size: 0.82rem; color: var(--muted); }
 
 /* Actalog tab */
 .actalog-panel { padding: 8px 0; display: flex; flex-direction: column; gap: 10px; }
