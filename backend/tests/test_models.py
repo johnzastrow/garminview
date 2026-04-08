@@ -66,3 +66,15 @@ def test_mfp_food_diary_extended_columns(session):
     row = session.query(MFPFoodDiaryEntry).filter_by(id=entry.id).one()
     assert row.sodium_mg == 800.0
     assert row.fiber_g == 6.0
+
+
+def test_weight_has_source_column(engine):
+    from sqlalchemy import inspect
+    cols = {c['name'] for c in inspect(engine).get_columns('weight')}
+    assert 'source' in cols
+
+
+def test_body_composition_has_source_column(engine):
+    from sqlalchemy import inspect
+    cols = {c['name'] for c in inspect(engine).get_columns('body_composition')}
+    assert 'source' in cols

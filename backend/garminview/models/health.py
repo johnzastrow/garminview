@@ -59,6 +59,7 @@ class Weight(Base):
     __tablename__ = "weight"
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     weight_kg: Mapped[float | None] = mapped_column(Float)
+    source: Mapped[str | None] = mapped_column(String(16), default="garmin")
 
 
 class Stress(Base):

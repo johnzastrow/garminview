@@ -103,6 +103,7 @@ class BodyComposition(Base):
     metabolic_age: Mapped[int | None] = mapped_column(SmallInteger)
     visceral_fat: Mapped[int | None] = mapped_column(SmallInteger)
     physique_rating: Mapped[int | None] = mapped_column(SmallInteger)
+    source: Mapped[str | None] = mapped_column(String(16), default="garmin")
 
 
 class BloodPressure(Base):
