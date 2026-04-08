@@ -116,6 +116,45 @@ async def test_upload_mfp_creates_exercises_table_if_missing(engine):
 
 
 @pytest.mark.asyncio
+async def test_upload_mfp_includes_backfill_counts(engine):
+    """Upload response includes backfill key with weight_rows and body_fat_rows."""
+    from garminview.api.main import create_app
+    app = create_app(engine)
+    zdata = _make_mfp_zip()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post(
+            "/admin/upload/mfp",
+            files={"file": ("export.zip", zdata, "application/zip")},
+        )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "backfill" in body
+    assert "weight_rows" in body["backfill"]
+    assert "body_fat_rows" in body["backfill"]
+
+
+@pytest.mark.asyncio
+async def test_backfill_mfp_endpoint(engine):
+    """POST /admin/backfill/mfp returns counts dict."""
+    from garminview.api.main import create_app
+    from sqlalchemy.orm import sessionmaker
+    from garminview.models.nutrition import MFPMeasurement
+    from datetime import date
+    app = create_app(engine)
+    Session = sessionmaker(bind=engine)
+    with Session() as s:
+        s.add(MFPMeasurement(date=date(2024, 6, 1), name="weight", value=170.0, unit="lbs"))
+        s.add(MFPMeasurement(date=date(2024, 6, 1), name="body_fat_pct", value=20.0, unit="%"))
+        s.commit()
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        resp = await client.post("/admin/backfill/mfp")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["weight_rows"] == 1
+    assert body["body_fat_rows"] == 1
+
+
+@pytest.mark.asyncio
 async def test_upload_mfp_no_mfp_files_returns_400(engine):
     """A valid ZIP with no MFP CSVs should return 400, not 422."""
     from garminview.api.main import create_app

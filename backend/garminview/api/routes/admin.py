@@ -648,13 +648,27 @@ async def upload_mfp(
 
     session.commit()
 
+    from garminview.ingestion.mfp_backfill import backfill_mfp_to_main
+    backfill = backfill_mfp_to_main(session)
+    session.commit()
+
     return {
         "nutrition_days": len(result.nutrition_daily),
         "food_diary_rows": len(result.food_diary),
         "measurements": len(result.measurements),
         "exercises": len(result.exercises),
+        "backfill": backfill,
         "errors": [{"file": e.file, "row": e.row, "message": e.message} for e in result.errors],
     }
+
+
+@router.post("/backfill/mfp")
+def backfill_mfp(session: Annotated[Session, Depends(get_db)]):
+    """Cross-populate weight and body_composition from already-uploaded MFP measurements."""
+    from garminview.ingestion.mfp_backfill import backfill_mfp_to_main
+    result = backfill_mfp_to_main(session)
+    session.commit()
+    return result
 
 
 _SOURCE_LABELS: dict[str, str] = {
