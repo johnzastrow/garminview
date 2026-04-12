@@ -44,6 +44,7 @@ class Sleep(Base):
     avg_spo2: Mapped[float | None] = mapped_column(Float)
     avg_respiration: Mapped[float | None] = mapped_column(Float)
     avg_stress: Mapped[int | None] = mapped_column(SmallInteger)
+    source: Mapped[str | None] = mapped_column(String(32))
 
 
 class SleepEvent(Base):
@@ -72,6 +73,7 @@ class RestingHeartRate(Base):
     __tablename__ = "resting_heart_rate"
     date: Mapped[date] = mapped_column(Date, primary_key=True)
     resting_hr: Mapped[int | None] = mapped_column(SmallInteger)
+    source: Mapped[str | None] = mapped_column(String(32))
 
 
 class DailyHRZones(Base):

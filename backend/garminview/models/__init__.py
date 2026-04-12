@@ -30,6 +30,16 @@ from garminview.models.actalog import (
     ActalogWorkout, ActalogMovement, ActalogWod,
     ActalogWorkoutMovement, ActalogWorkoutWod, ActalogPersonalRecord,
 )
+from garminview.models.polar import (
+    PolarTrainingSession, PolarExercise, PolarExerciseStatistic,
+    PolarExerciseZone, PolarExerciseLap, PolarExerciseSample, PolarExerciseRoute,
+    PolarActivity, PolarActivitySample, PolarActivityMetSource, PolarActivityPhysicalInfo,
+    PolarSleep, PolarSleepState, Polar247OHR, PolarFitnessTest,
+    PolarTrainingTarget, PolarTrainingTargetPhase, PolarAccount,
+    PolarDevice, PolarSportProfile, PolarCalendarItem,
+    PolarProgram, PolarPlannedRoute, PolarFavouriteTarget,
+    PolarImportLog, PolarImportFile,
+)
 
 __all__ = [
     "DailySummary", "Sleep", "SleepEvent", "Weight", "Stress", "RestingHeartRate", "DailyHRZones",
@@ -46,4 +56,12 @@ __all__ = [
     "MFPDailyNutrition", "MFPFoodDiaryEntry", "MFPMeasurement", "MFPExercise",
     "ActalogWorkout", "ActalogMovement", "ActalogWod",
     "ActalogWorkoutMovement", "ActalogWorkoutWod", "ActalogPersonalRecord",
+    "PolarTrainingSession", "PolarExercise", "PolarExerciseStatistic",
+    "PolarExerciseZone", "PolarExerciseLap", "PolarExerciseSample", "PolarExerciseRoute",
+    "PolarActivity", "PolarActivitySample", "PolarActivityMetSource", "PolarActivityPhysicalInfo",
+    "PolarSleep", "PolarSleepState", "Polar247OHR", "PolarFitnessTest",
+    "PolarTrainingTarget", "PolarTrainingTargetPhase", "PolarAccount",
+    "PolarDevice", "PolarSportProfile", "PolarCalendarItem",
+    "PolarProgram", "PolarPlannedRoute", "PolarFavouriteTarget",
+    "PolarImportLog", "PolarImportFile",
 ]

@@ -662,6 +662,42 @@ async def upload_mfp(
     }
 
 
+@router.post("/import/polar")
+def import_polar(
+    session: Annotated[Session, Depends(get_db)],
+    path: str = Body(embed=True),
+):
+    """Import Polar Flow GDPR export from a filesystem directory.
+
+    Creates all polar_* staging tables if they don't exist, then imports all JSON files.
+    """
+    import os
+    abs_path = os.path.expanduser(path)
+    if not os.path.isdir(abs_path):
+        raise HTTPException(status_code=400, detail=f"Directory not found: {abs_path}")
+
+    # Ensure polar tables exist
+    from garminview.models.polar import Base as PolarBase
+    from sqlalchemy import inspect as sa_inspect
+    inspector = sa_inspect(session.bind)
+    existing_tables = set(inspector.get_table_names())
+    with session.connection() as conn:
+        for table in PolarBase.metadata.sorted_tables:
+            if table.name.startswith("polar_") and table.name not in existing_tables:
+                table.create(conn, checkfirst=True)
+    session.commit()
+
+    from garminview.ingestion.polar.importer import run_import
+    return run_import(session, abs_path)
+
+
+@router.post("/backfill/polar")
+def backfill_polar(session: Annotated[Session, Depends(get_db)]):
+    """Backfill core tables (activities, sleep, resting_hr, vo2max) from Polar staging data."""
+    from garminview.ingestion.polar_backfill import backfill_all_polar
+    return backfill_all_polar(session)
+
+
 @router.post("/backfill/mfp")
 def backfill_mfp(session: Annotated[Session, Depends(get_db)]):
     """Cross-populate weight and body_composition from already-uploaded MFP measurements."""

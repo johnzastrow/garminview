@@ -50,6 +50,7 @@ class VO2Max(Base):
     vo2max_running: Mapped[float | None] = mapped_column(Float)
     vo2max_cycling: Mapped[float | None] = mapped_column(Float)
     fitness_age: Mapped[int | None] = mapped_column(SmallInteger)
+    source: Mapped[str | None] = mapped_column(String(32))
 
 
 class RacePrediction(Base):
