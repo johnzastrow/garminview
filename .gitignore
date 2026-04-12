@@ -4,3 +4,21 @@ __pycache__/
 *.pyo
 .venv/
 *.db
+
+# Secrets
+.env
+
+# Logs
+*.log
+backend/garmindb.log
+
+# Data exports (large)
+polar-user-data-export/
+polar-user-data-export*.zip
+
+# Brainstorming artifacts
+.superpowers/
+
+# IDE
+.idea/
+.vscode/

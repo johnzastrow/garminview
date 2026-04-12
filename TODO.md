@@ -1,6 +1,6 @@
 # GarminView — Project TODO
 
-**Last updated:** 2026-03-12
+**Last updated:** 2026-04-08
 
 ---
 
@@ -64,6 +64,24 @@
 - [x] garmindb in Docker — garmindb>=1.1.0 in deps; HealthData volume writable
 - [x] Docker local deploy v0.6.0 — stack running at localhost:8010 against MariaDB
 - [x] Historical monitoring re-ingestion — 2012–2023 backfill run
+
+### MFP Backfill (2026-03-12)
+
+- [x] Migration 0007 — add source column to weight and body_composition
+- [x] Tag Garmin weight/body_composition rows with source='garmin'
+- [x] `backfill_mfp_to_main()` — cross-populate weight and body_composition from MFP
+- [x] `POST /admin/backfill/mfp` endpoint with auto-trigger on upload
+- [x] Admin UI "Backfill from MFP" button with counts
+- [x] Version bump to v0.9.1
+
+---
+
+## Upcoming
+
+- [ ] **Polar data import** — 26 staging tables for Polar Flow GDPR export (plan: `docs/plans/2026-04-08-polar-integration-plan.md`)
+- [ ] **HR Zones chart** — Age-adapted Karvonen zones, stacked bar on Daily Overview
+- [ ] **Data Management Tasks Panel** — Actionable items: sync gaps, data quality, manual entry reminders
+- [ ] **Actalog Review Workflow** — AI-processed workout review queue
 
 ---
 

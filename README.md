@@ -2,7 +2,7 @@
 
 A personal Garmin fitness data platform: download your full history, store it locally, and explore it through dashboards, interactive notebooks, and automated reports.
 
-**Stack:** Python 3.10+ · FastAPI · SQLAlchemy 2 · Vue.js 3 · ECharts · Marimo · SQLite (or MariaDB)
+**Version: v0.9.1** | **Stack:** Python 3.10+ · FastAPI · SQLAlchemy 2 · Vue.js 3 · ECharts · Marimo · SQLite (or MariaDB)
 
 ---
 
@@ -64,3 +64,23 @@ cd ~/Github/GarminDB && make   # incremental update
 ```
 
 See **[docs/SETUP.md](docs/SETUP.md)** for the full walkthrough.
+
+---
+
+## Features (v0.9.1)
+
+- **Garmin Connect sync** -- bulk download via GarminDB + real-time API (10 adapters, rate-limited)
+- **MyFitnessPal import** -- ZIP upload with nutrition, measurements, exercise data
+- **MFP backfill** -- cross-populate weight and body composition from MFP into main tables
+- **Dashboards** -- Sleep, Cardiovascular, Weight/Body Comp, Activity Summary, Recovery/Stress, Running, Max HR Aging, Nutrition
+- **Analysis engine** -- derived metrics (TRIMP, ATL/CTL/TSB), trend classification, data quality checks
+- **Admin UI** -- credential management, sync scheduling, file uploads, backfill controls
+- **Scheduled sync** -- APScheduler with DB-driven cron, hot-reload on config change
+- **Docker deployment** -- backend + Caddy frontend, external MariaDB
+
+### Upcoming
+
+- Polar Flow GDPR export import (26 staging tables)
+- HR Zones chart (age-adapted Karvonen zones)
+- Data Management Tasks Panel
+- Actalog Review Workflow

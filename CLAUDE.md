@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code when working with this repository.
 
+## Current Version
+
+**v0.9.1** (source of truth: `backend/pyproject.toml`)
+
 ## Project Overview
 
 **garminview** — A Garmin fitness data harvesting and analysis tool that combines:
@@ -88,4 +92,4 @@ was ~80% of total sync time. Only use `--all --download --import --latest`.
 - Elevation: `ascent_m`/`descent_m` not `total_ascent_m`/`total_descent_m`
 
 # currentDate
-Today's date is 2026-03-12.
+Today's date is 2026-04-08.
