@@ -707,7 +707,7 @@ wheels = [
 
 [[package]]
 name = "garminview"
-version = "0.5.0"
+version = "0.9.1"
 source = { editable = "." }
 dependencies = [
     { name = "alembic" },
@@ -717,6 +717,7 @@ dependencies = [
     { name = "fitparse" },
     { name = "garminconnect" },
     { name = "garmindb" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -754,6 +755,7 @@ requires-dist = [
     { name = "fitparse", specifier = ">=1.2.0" },
     { name = "garminconnect", specifier = ">=0.2.19" },
     { name = "garmindb", specifier = ">=1.1.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
     { name = "numpy", specifier = ">=1.26.0" },
