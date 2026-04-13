@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Current Version
 
-**v0.9.1** (source of truth: `backend/pyproject.toml`)
+**v0.10.0** (source of truth: `backend/pyproject.toml`)
 
 ## Project Overview
 

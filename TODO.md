@@ -79,9 +79,20 @@
 ## Upcoming
 
 - [ ] **Polar data import** — 26 staging tables for Polar Flow GDPR export (plan: `docs/plans/2026-04-08-polar-integration-plan.md`)
-- [ ] **HR Zones chart** — Age-adapted Karvonen zones, stacked bar on Daily Overview
-- [ ] **Data Management Tasks Panel** — Actionable items: sync gaps, data quality, manual entry reminders
-- [ ] **Actalog Review Workflow** — AI-processed workout review queue
+- [x] **HR Zones chart** — Age-adapted Karvonen zones, stacked bar on Daily Overview
+- [x] **Data Management Tasks Panel** — Actionable items: sync gaps, data quality, manual entry reminders
+- [x] **Actalog Review Workflow** — AI-processed workout review queue with write-back to Actalog API
+
+### Actalog Review Workflow (2026-04-13)
+
+- [x] Auto-parse workout notes after scheduled sync
+- [x] Review queue UI with editable Markdown + preview toggle
+- [x] Sortable/filterable queue with keyword search
+- [x] Write-back to Actalog API (JWT auth, WOD/movement creation)
+- [x] Retry push for approved-not-sent items
+- [x] Consolidated Actalog screen with tabs (Workouts, Review, Analytics, Settings)
+- [x] Parser and connection config moved from Admin to Actalog Settings tab
+- [x] Version bump to v0.10.0
 
 ---
 
