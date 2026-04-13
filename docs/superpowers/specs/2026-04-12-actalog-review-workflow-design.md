@@ -68,9 +68,11 @@ No new API endpoints needed. The existing `POST /admin/actalog/parser/run` manua
 
 **List view:**
 - Table of parses: workout date, workout name, content_class badge (WORKOUT/MIXED/PERFORMANCE/SKIP), status badge (pending/approved/rejected/sent), LLM model
-- Default filter: pending items only
-- Filter dropdown: pending, approved, rejected, sent, all
-- Sort by date (newest first)
+- **Sorting:** Date column sortable ascending/descending (click header to toggle, default newest first)
+- **Filters:**
+  - Status dropdown: pending (default), approved, rejected, sent, all
+  - Content class dropdown: all, WORKOUT, MIXED, PERFORMANCE_ONLY, SKIP
+  - Keyword search: free-text search across workout name and raw notes content
 - Click a row to open detail view
 
 **Detail view (inline expand or modal):**
@@ -91,11 +93,23 @@ No new API endpoints needed. The existing `POST /admin/actalog/parser/run` manua
 
 ### API changes
 
-No new endpoints needed — the existing parser admin API already has:
+The existing parser admin API already has the core endpoints:
 - `GET /admin/actalog/parser/queue` — list parses by status
 - `POST /admin/actalog/parser/approve/{id}` — approve
 - `POST /admin/actalog/parser/reject/{id}` — reject
 - `POST /admin/actalog/parser/reparse/{workout_id}` — reparse
+
+**Modification needed for queue endpoint:** Add query parameters to support sorting, filtering, and search:
+
+```
+GET /admin/actalog/parser/queue?status=pending&content_class=WORKOUT&q=deadlift&sort=date&order=desc
+```
+
+- `status` — filter by parse_status (existing)
+- `content_class` — filter by content_class (new)
+- `q` — keyword search across workout name and raw_notes (new, SQL LIKE)
+- `sort` — sort field: `date` (default) (new)
+- `order` — `asc` or `desc` (default: `desc`) (new)
 
 **One modification needed:** The approve endpoint currently only writes Markdown to `actalog_workouts.notes` locally. It needs to also trigger the write-back service (Section 3). Add an optional `edited_markdown` field to the approve request body so the frontend can send user-corrected Markdown.
 
@@ -171,9 +185,11 @@ Tabbed layout with 4 tabs:
 
 ### Admin panel cleanup
 
-Remove from `Admin.vue`:
-- The "parser" tab (entire `<div v-if="activeTab === 'parser'">` section)
-- Actalog connection/sync config (if it's in Admin)
+**Comment out** (do not delete — keep for reference) from `Admin.vue`:
+- The "parser" tab (entire `<div v-if="activeTab === 'parser'">` section) — wrap in `<!-- MOVED TO /actalog Settings tab ... -->`
+- Actalog connection/sync config (if it's in Admin) — wrap in `<!-- MOVED TO /actalog Settings tab ... -->`
+
+The code stays in the file as a commented reference while the new Settings tab is validated.
 
 Keep in Admin:
 - Tasks Panel still references `/actalog` for pending review count — update the link to point to `/actalog?tab=review`
