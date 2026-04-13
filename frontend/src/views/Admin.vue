@@ -246,10 +246,10 @@
         </template>
       </div>
 
-      <!-- Parser Config tab -->
+      <!-- MOVED TO /actalog Settings tab
       <div v-if="activeTab === 'parser'" class="parser-panel">
         <h2>Notes Parser</h2>
-        <div v-if="parserLoading" class="muted">Loading config…</div>
+        <div v-if="parserLoading" class="muted">Loading config...</div>
         <template v-else>
           <div class="field-row">
             <label>Ollama URL</label>
@@ -262,7 +262,7 @@
           <div class="field-row">
             <label>Min Note Length</label>
             <input v-model.number="parserForm.min_note_length" class="input-sm" type="number" min="1" style="min-width:80px;max-width:120px" />
-            <span class="muted" style="font-size:0.78rem">chars — shorter notes are skipped</span>
+            <span class="muted" style="font-size:0.78rem">chars - shorter notes are skipped</span>
           </div>
           <div class="field-row prompt-row">
             <label style="align-self:flex-start;padding-top:4px">System Prompt</label>
@@ -270,56 +270,13 @@
           </div>
           <div class="action-row">
             <button class="btn-primary" @click="saveParserConfig">Save Config</button>
-            <button class="btn-secondary" :disabled="parserRunning" @click="runParser">
-              {{ parserRunning ? 'Running…' : 'Run Parser Now' }}
-            </button>
-            <button class="btn-danger" :disabled="parserRunning" @click="reparseAll">
-              {{ parserRunning ? 'Running…' : 'Reparse All Non-Approved' }}
-            </button>
+            <button class="btn-secondary" :disabled="parserRunning" @click="runParser">Run Parser Now</button>
+            <button class="btn-danger" :disabled="parserRunning" @click="reparseAll">Reparse All Non-Approved</button>
           </div>
-          <div v-if="parserMsg" :class="['status-msg', parserMsgOk ? 'ok' : 'err']">{{ parserMsg }}</div>
-
-          <!-- Live status bar — always visible -->
-          <div class="parser-status-bar">
-            <span :class="['status-dot', parserRunning ? 'dot-running' : 'dot-idle']"></span>
-            <span class="status-label">{{ parserRunning ? 'Running' : 'Idle' }}</span>
-            <span v-if="parserStatusDetail" class="status-detail">{{ parserStatusDetail }}</span>
-          </div>
-
-          <!-- Timing metrics -->
-          <div v-if="parserMetrics" class="metrics-panel">
-            <div class="metrics-header">
-              <span class="metrics-title">Parse Metrics</span>
-              <span class="muted" style="font-size:0.75rem">{{ parserMetrics.total }} records total · {{ Object.entries(parserMetrics.by_status).map(([k,v]) => `${v} ${k}`).join(' · ') }}</span>
-            </div>
-            <table class="metrics-table" v-if="parserMetrics.by_model.length">
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>N</th>
-                  <th>Avg wall (s)</th>
-                  <th>Avg infer (s)</th>
-                  <th>Min / Max wall (s)</th>
-                  <th>Avg prompt tok</th>
-                  <th>Avg gen tok</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="m in parserMetrics.by_model" :key="m.model">
-                  <td class="model-cell">{{ m.model ?? '—' }}</td>
-                  <td>{{ m.n }}</td>
-                  <td>{{ m.avg_wall_s ?? '—' }}</td>
-                  <td>{{ m.avg_inference_s ?? '—' }}</td>
-                  <td>{{ m.min_wall_s ?? '—' }} / {{ m.max_wall_s ?? '—' }}</td>
-                  <td>{{ m.avg_tokens_prompt ?? '—' }}</td>
-                  <td>{{ m.avg_tokens_generated ?? '—' }}</td>
-                </tr>
-              </tbody>
-            </table>
-            <div v-else class="muted" style="font-size:0.8rem">No timing data yet — run the parser first.</div>
-          </div>
+          <div v-if="parserMsg" :class="['status-msg', parserMsgOk ? 'ok' : 'err']">parserMsg</div>
         </template>
       </div>
+      -->
 
     </div>
   </div>
@@ -338,7 +295,8 @@ const tabs = [
   { id: "logs", label: "Sync Logs" },
   { id: "uploads", label: "Uploads" },
   { id: "actalog", label: "Actalog" },
-  { id: "parser", label: "Parser" },
+  // MOVED TO /actalog Settings tab
+  // { id: "parser", label: "Parser" },
 ]
 
 // --- Sync ---

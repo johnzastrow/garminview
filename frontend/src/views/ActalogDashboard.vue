@@ -9,15 +9,150 @@ import { useActalogStore, type WorkoutListItem } from "@/stores/actalog"
 import { useDateRangeStore } from "@/stores/dateRange"
 import DateRangePicker from "@/components/ui/DateRangePicker.vue"
 import DualAxisChart from "@/components/charts/DualAxisChart.vue"
+import ReviewQueue from "@/components/actalog/ReviewQueue.vue"
 import { api } from "@/api/client"
 import { marked } from "marked"
+import { useRoute } from "vue-router"
 
 use([LineChart, BarChart, GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkPointComponent, CanvasRenderer])
 
 const store = useActalogStore()
 const dateRange = useDateRangeStore()
+const route = useRoute()
 
-const activeTab = ref<"workouts" | "movements" | "wods" | "prs" | "cross" | "calendar" | "qa">("workouts")
+const activeTab = ref<"workouts" | "movements" | "wods" | "prs" | "cross" | "calendar" | "qa" | "review" | "settings">("workouts")
+
+// Review tab — pending count badge
+const reviewPendingCount = ref(0)
+async function fetchReviewPendingCount() {
+  try {
+    const { data } = await api.get("/admin/actalog/parser/status")
+    reviewPendingCount.value = data.total_staged ?? 0
+  } catch { /* ignore */ }
+}
+
+// Settings tab state
+const settingsLoading = ref(true)
+const settingsForm = ref({
+  url: "",
+  email: "",
+  password: "",
+  sync_enabled: false,
+  ollama_url: "",
+  model: "",
+  min_note_length: 20,
+  system_prompt: "",
+})
+const settingsShowPw = ref(false)
+const settingsMsg = ref("")
+const settingsMsgOk = ref(true)
+const settingsParserRunning = ref(false)
+let _settingsPollTimer: ReturnType<typeof setInterval> | null = null
+
+async function loadSettingsConfig() {
+  settingsLoading.value = true
+  try {
+    const [actalogR, parserR] = await Promise.all([
+      api.get("/admin/actalog/config"),
+      api.get("/admin/actalog/parser/config"),
+    ])
+    const ac = actalogR.data
+    settingsForm.value.url = ac.url ?? ""
+    settingsForm.value.email = ac.email ?? ""
+    settingsForm.value.sync_enabled = ac.sync_enabled ?? false
+    const pc = parserR.data
+    settingsForm.value.ollama_url = pc.ollama_url ?? ""
+    settingsForm.value.model = pc.model ?? ""
+    settingsForm.value.min_note_length = pc.min_note_length ?? 20
+    settingsForm.value.system_prompt = pc.system_prompt ?? ""
+  } catch { /* ignore */ }
+  finally { settingsLoading.value = false }
+}
+
+async function saveSettingsConfig() {
+  settingsMsg.value = ""
+  try {
+    await Promise.all([
+      api.post("/admin/actalog/config", {
+        url: settingsForm.value.url,
+        email: settingsForm.value.email,
+        password: settingsForm.value.password || undefined,
+        sync_enabled: settingsForm.value.sync_enabled,
+      }),
+      api.post("/admin/actalog/parser/config", {
+        ollama_url: settingsForm.value.ollama_url,
+        model: settingsForm.value.model,
+        min_note_length: settingsForm.value.min_note_length,
+        system_prompt: settingsForm.value.system_prompt,
+      }),
+    ])
+    settingsMsg.value = "Config saved."
+    settingsMsgOk.value = true
+  } catch (e: any) {
+    settingsMsg.value = `Save failed: ${e.response?.data?.detail ?? e.message}`
+    settingsMsgOk.value = false
+  }
+}
+
+async function testSettingsConnection() {
+  settingsMsg.value = ""
+  try {
+    await api.post("/admin/actalog/test-connection", null, {
+      params: {
+        url: settingsForm.value.url,
+        email: settingsForm.value.email,
+        password: settingsForm.value.password,
+      },
+    })
+    settingsMsg.value = "Connection successful."
+    settingsMsgOk.value = true
+  } catch (e: any) {
+    settingsMsg.value = `Connection failed: ${e.response?.data?.detail ?? e.message}`
+    settingsMsgOk.value = false
+  }
+}
+
+async function settingsRunParser() {
+  settingsMsg.value = ""
+  try {
+    await api.post("/admin/actalog/parser/run")
+    settingsParserRunning.value = true
+    _startSettingsPolling()
+  } catch (e: any) {
+    settingsMsg.value = `Parser run failed: ${e.response?.data?.detail ?? e.message}`
+    settingsMsgOk.value = false
+  }
+}
+
+async function settingsReparseAll() {
+  if (!confirm("Delete all non-approved parse records and reparse everything? Approved notes are not affected.")) return
+  settingsMsg.value = ""
+  try {
+    await api.post("/admin/actalog/parser/reparse-all")
+    settingsParserRunning.value = true
+    _startSettingsPolling()
+  } catch (e: any) {
+    settingsMsg.value = `Reparse failed: ${e.response?.data?.detail ?? e.message}`
+    settingsMsgOk.value = false
+  }
+}
+
+async function _settingsPollStatus() {
+  try {
+    const r = await api.get("/admin/actalog/parser/status")
+    if (!r.data.running && settingsParserRunning.value) {
+      settingsParserRunning.value = false
+      settingsMsg.value = "Run complete."
+      settingsMsgOk.value = true
+      if (_settingsPollTimer) { clearInterval(_settingsPollTimer); _settingsPollTimer = null }
+    }
+  } catch { /* ignore */ }
+}
+
+function _startSettingsPolling() {
+  if (_settingsPollTimer) return
+  _settingsPollTimer = setInterval(_settingsPollStatus, 4000)
+}
 
 // ── Tab 1: Workouts ─────────────────────────────────────────────────
 const expandedWorkout = ref<number | null>(null)
@@ -402,11 +537,23 @@ watch(qaFilter, loadQaQueue)
 
 // ── Lifecycle ────────────────────────────────────────────────────────
 onMounted(async () => {
+  // Support ?tab=review (or any tab) in URL
+  if (route.query.tab && typeof route.query.tab === "string") {
+    const validTabs = ["workouts","movements","wods","prs","cross","calendar","qa","review","settings"]
+    if (validTabs.includes(route.query.tab)) {
+      activeTab.value = route.query.tab as any
+    }
+  }
+
   await store.fetchWorkouts(dateRange.startDate, dateRange.endDate)
   await store.fetchPRs()
   await store.fetchCrossRef(dateRange.startDate, dateRange.endDate)
   await loadMovements()
   await loadWods()
+  fetchReviewPendingCount()
+
+  // Load settings config if that tab is active
+  if (activeTab.value === "settings") loadSettingsConfig()
 })
 
 watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
@@ -424,10 +571,11 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 
     <!-- Tab Bar -->
     <div class="tab-bar">
-      <button v-for="tab in ['workouts','movements','wods','prs','cross','calendar','qa']" :key="tab"
+      <button v-for="tab in ['workouts','movements','wods','prs','cross','calendar','qa','review','settings']" :key="tab"
         :class="['tab-btn', { active: activeTab === tab }]"
-        @click="activeTab = tab as any; if(tab==='qa') loadQaQueue()">
-        {{ ({ workouts: 'Workouts', movements: 'Movements', wods: 'WODs', prs: 'Personal Records', cross: 'Cross-Reference', calendar: 'Calendar', qa: 'QA Review' } as Record<string,string>)[tab] }}
+        @click="activeTab = tab as any; if(tab==='qa') loadQaQueue(); if(tab==='settings') loadSettingsConfig()">
+        {{ ({ workouts: 'Workouts', movements: 'Movements', wods: 'WODs', prs: 'Personal Records', cross: 'Cross-Reference', calendar: 'Calendar', qa: 'QA Review', review: 'Review', settings: 'Settings' } as Record<string,string>)[tab] }}
+        <span v-if="tab === 'review' && reviewPendingCount > 0" class="tab-badge">{{ reviewPendingCount }}</span>
       </button>
     </div>
 
@@ -779,6 +927,74 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
         </div>
       </div>
     </div>
+
+    <!-- ── Tab 8: Review ───────────────────────────────────────── -->
+    <div v-if="activeTab === 'review'" class="tab-content">
+      <ReviewQueue />
+    </div>
+
+    <!-- ── Tab 9: Settings ─────────────────────────────────────── -->
+    <div v-if="activeTab === 'settings'" class="tab-content settings-panel">
+      <div v-if="settingsLoading" class="muted">Loading config...</div>
+      <template v-else>
+        <h3 class="settings-section-title">Actalog Connection</h3>
+        <div class="field-row">
+          <label>Base URL</label>
+          <input v-model="settingsForm.url" class="input-sm" placeholder="https://al.example.com" />
+        </div>
+        <div class="field-row">
+          <label>Email</label>
+          <input v-model="settingsForm.email" class="input-sm" type="email" />
+        </div>
+        <div class="field-row">
+          <label>Password</label>
+          <input
+            v-model="settingsForm.password"
+            class="input-sm"
+            :type="settingsShowPw ? 'text' : 'password'"
+            placeholder="Leave blank to keep existing"
+          />
+          <button class="link-btn" @click="settingsShowPw = !settingsShowPw">{{ settingsShowPw ? 'Hide' : 'Show' }}</button>
+        </div>
+        <div class="field-row">
+          <label>Sync Enabled</label>
+          <input v-model="settingsForm.sync_enabled" type="checkbox" />
+        </div>
+        <div class="action-row" style="margin-bottom: 4px">
+          <button class="btn-secondary" @click="testSettingsConnection">Test Connection</button>
+        </div>
+
+        <h3 class="settings-section-title" style="margin-top: 24px">Parser</h3>
+        <div class="field-row">
+          <label>Ollama URL</label>
+          <input v-model="settingsForm.ollama_url" class="input-sm" placeholder="http://localhost:11434" />
+        </div>
+        <div class="field-row">
+          <label>Model</label>
+          <input v-model="settingsForm.model" class="input-sm" placeholder="qwen2.5:7b" />
+        </div>
+        <div class="field-row">
+          <label>Min Note Length</label>
+          <input v-model.number="settingsForm.min_note_length" class="input-sm" type="number" min="1" style="min-width:80px;max-width:120px" />
+          <span class="muted" style="font-size:0.78rem">chars -- shorter notes are skipped</span>
+        </div>
+        <div class="field-row prompt-row">
+          <label style="align-self:flex-start;padding-top:4px">System Prompt</label>
+          <textarea v-model="settingsForm.system_prompt" class="prompt-textarea" rows="10" spellcheck="false" />
+        </div>
+
+        <div class="action-row" style="margin-top: 16px">
+          <button class="btn-primary" @click="saveSettingsConfig">Save Config</button>
+          <button class="btn-secondary" :disabled="settingsParserRunning" @click="settingsRunParser">
+            {{ settingsParserRunning ? 'Running...' : 'Run Parser Now' }}
+          </button>
+          <button class="btn-danger" :disabled="settingsParserRunning" @click="settingsReparseAll">
+            {{ settingsParserRunning ? 'Running...' : 'Reparse All Non-Approved' }}
+          </button>
+        </div>
+        <div v-if="settingsMsg" :class="['status-msg', settingsMsgOk ? 'ok' : 'err']" style="margin-top: 8px">{{ settingsMsg }}</div>
+      </template>
+    </div>
   </div>
 </template>
 
@@ -920,4 +1136,20 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .qa-md-preview hr   { border: none; border-top: 1px solid var(--border); margin: 10px 0; }
 .qa-md-preview code { font-family: monospace; font-size: 0.82rem; background: var(--surface); padding: 1px 4px; border-radius: 3px; }
 .qa-md-empty { color: var(--muted); font-style: italic; }
+
+/* Tab badge for pending count */
+.tab-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; background: #f59e0b; color: #fff; font-size: 0.68rem; font-weight: 700; margin-left: 5px; vertical-align: middle; }
+
+/* Settings tab */
+.settings-panel { max-width: 700px; }
+.settings-section-title { font-size: 0.95rem; font-weight: 700; color: var(--text); margin-bottom: 12px; }
+.field-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 0.83rem; }
+.field-row label { min-width: 120px; color: var(--muted); font-weight: 600; font-size: 0.82rem; }
+.input-sm { padding: 5px 10px; border-radius: 6px; border: 1px solid var(--border); font-size: 0.83rem; color: var(--text); background: var(--surface); flex: 1; min-width: 200px; }
+.prompt-row { align-items: flex-start; }
+.prompt-textarea { flex: 1; min-height: 180px; font-family: monospace; font-size: 0.82rem; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 10px; resize: vertical; line-height: 1.5; }
+.action-row { display: flex; gap: 10px; align-items: center; margin-top: 12px; }
+.status-msg { font-size: 0.83rem; padding: 4px 0; }
+.status-msg.ok { color: #166534; }
+.status-msg.err { color: #EF4444; }
 </style>
