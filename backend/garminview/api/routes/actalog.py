@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, date
 from typing import Annotated
 
@@ -56,6 +57,8 @@ from garminview.models.monitoring import MonitoringHeartRate
 from garminview.models.supplemental import BodyBatteryEvent
 from garminview.models.health import Stress
 from garminview.models.sync import SyncLog
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter()
 admin_router = APIRouter()
@@ -705,6 +708,36 @@ def approve_parse(
     record.reviewed_at = datetime.now()
 
     session.commit()
+
+    # Trigger write-back to Actalog API (failure keeps status=approved)
+    try:
+        from garminview.ingestion.actalog_writeback import write_back_approved
+        final_status = write_back_approved(session, parse_id)
+        _log.info("Parse %d: approve -> %s", parse_id, final_status)
+    except Exception as exc:
+        _log.warning("Write-back failed for parse %d: %s", parse_id, exc)
+
+    # Refresh record after potential status change
+    session.refresh(record)
+
+    return _parse_item(record, session)
+
+
+@parser_router.post("/push/{parse_id}", response_model=NoteParseItem)
+def push_to_actalog(
+    parse_id: int,
+    session: Session = Depends(get_db),
+):
+    """Retry pushing an approved parse to Actalog API."""
+    record = session.get(ActalogNoteParse, parse_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Parse record not found")
+    if record.parse_status != "approved":
+        raise HTTPException(status_code=400, detail="Only approved (not yet sent) records can be pushed")
+
+    from garminview.ingestion.actalog_writeback import write_back_approved
+    final_status = write_back_approved(session, parse_id)
+    session.refresh(record)
     return _parse_item(record, session)
 
 
