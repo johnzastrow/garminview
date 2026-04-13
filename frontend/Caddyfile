@@ -9,9 +9,11 @@
             flush_interval -1
         }
 
-        # Serve Vue.js SPA with history-mode fallback
+        # Serve Vue.js SPA with history-mode fallback.
+        # try_files MUST come before file_server so that non-file
+        # paths (like /actalog, /sleep) fall back to index.html.
         root * /srv
-        file_server
         try_files {path} /index.html
+        file_server
     }
 }
