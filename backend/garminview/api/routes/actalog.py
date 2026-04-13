@@ -6,7 +6,7 @@ from datetime import datetime, date
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
-from sqlalchemy import cast, Date as SADate, func
+from sqlalchemy import cast, Date as SADate, func, or_
 from sqlalchemy.orm import Session
 
 from garminview.api.deps import get_db
@@ -617,13 +617,39 @@ def get_parser_status(session: Session = Depends(get_db)):
 @parser_router.get("/queue", response_model=NoteParseQueue)
 def get_parser_queue(
     status: str | None = Query(None, description="Filter by parse_status"),
+    content_class: str | None = Query(None, description="Filter by content_class"),
+    q: str | None = Query(None, description="Keyword search in workout name and notes"),
+    sort: str = Query("date", description="Sort field: date"),
+    order: str = Query("desc", description="Sort order: asc or desc"),
     session: Session = Depends(get_db),
 ):
-    """List staged parse records, optionally filtered by status."""
-    q = session.query(ActalogNoteParse).order_by(ActalogNoteParse.parsed_at.desc())
+    """List staged parse records with filtering, sorting, and search."""
+    query = session.query(ActalogNoteParse)
+
     if status:
-        q = q.filter(ActalogNoteParse.parse_status == status)
-    rows = q.all()
+        query = query.filter(ActalogNoteParse.parse_status == status)
+
+    if content_class:
+        query = query.filter(ActalogNoteParse.content_class == content_class)
+
+    if q:
+        search_term = f"%{q}%"
+        query = query.join(
+            ActalogWorkout, ActalogNoteParse.workout_id == ActalogWorkout.id
+        ).filter(
+            or_(
+                ActalogWorkout.name.ilike(search_term),
+                ActalogNoteParse.raw_notes.ilike(search_term),
+            )
+        )
+
+    sort_col = ActalogNoteParse.parsed_at
+    if order == "asc":
+        query = query.order_by(sort_col.asc())
+    else:
+        query = query.order_by(sort_col.desc())
+
+    rows = query.all()
     return NoteParseQueue(
         total=len(rows),
         items=[_parse_item(r, session) for r in rows],

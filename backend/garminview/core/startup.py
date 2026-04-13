@@ -80,6 +80,19 @@ async def _actalog_job():
                              _dt.datetime.now(_dt.timezone.utc).isoformat())
             session.commit()
             _log.info("Actalog scheduled sync complete")
+
+            # Auto-parse any new workout notes through the LLM
+            try:
+                from garminview.ingestion.notes_parser import NotesParser
+                from garminview.ingestion.notes_parser import seed_default_config
+                seed_default_config(session)
+                parser = NotesParser(session)
+                parsed = parser.parse_pending()
+                session.commit()
+                if parsed:
+                    _log.info("Auto-parsed %d workout notes after sync", len(parsed))
+            except Exception as exc:
+                _log.warning("Auto-parse after sync failed (non-fatal): %s", exc)
         except Exception as exc:
             _log.error("Actalog scheduled sync failed: %s", exc)
 
