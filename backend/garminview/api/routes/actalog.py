@@ -772,7 +772,7 @@ def reparse_workout(
         session.flush()
     seed_default_config(session)
     parser = NotesParser(session)
-    record = parser.parse_workout(workout_id)
+    record = parser.parse_workout(workout_id, force=True)
     session.commit()
     return _parse_item(record, session)
 

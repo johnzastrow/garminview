@@ -341,18 +341,26 @@ class NotesParser:
     # Public API
     # ------------------------------------------------------------------
 
-    def parse_workout(self, workout_id: int) -> ActalogNoteParse:
-        """Parse notes for one workout. Returns the staging record."""
+    def parse_workout(self, workout_id: int, force: bool = False) -> ActalogNoteParse:
+        """Parse notes for one workout. Returns the staging record.
+
+        Args:
+            workout_id: ID of the workout to parse
+            force: If True, skip the regex pre-pass and always call the LLM.
+                   Use when the user explicitly requests a reparse of a
+                   previously-skipped workout.
+        """
         workout = self._session.get(ActalogWorkout, workout_id)
         if workout is None:
             raise ValueError(f"Workout {workout_id} not found")
 
         notes = (workout.notes or "").strip()
 
-        # Regex pre-pass — skip without calling the LLM
-        content_class, skip_reason = self._classify_trivial(notes)
-        if content_class == "SKIP":
-            return self._write_staging(workout, notes, content_class, None, None, skip_reason)
+        # Regex pre-pass — skip without calling the LLM (unless forced)
+        if not force:
+            content_class, skip_reason = self._classify_trivial(notes)
+            if content_class == "SKIP":
+                return self._write_staging(workout, notes, content_class, None, None, skip_reason)
 
         # LLM call
         model = self._get(CONFIG_KEY_MODEL, DEFAULT_MODEL)
