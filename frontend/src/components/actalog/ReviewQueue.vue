@@ -394,7 +394,7 @@ onUnmounted(() => {
       <div class="actions">
         <button v-if="selectedItem.parse_status === 'pending'" class="btn-success" @click="approve">Approve (a)</button>
         <button v-if="selectedItem.parse_status === 'pending'" class="btn-danger" @click="reject">Reject (r)</button>
-        <button v-if="selectedItem.parse_status !== 'sent' && selectedItem.parse_status !== 'dismissed'" class="btn-secondary" @click="reparse">Reparse</button>
+        <button v-if="!['approved','sent','dismissed'].includes(selectedItem.parse_status ?? '')" class="btn-secondary" @click="reparse">Reparse</button>
         <button
           v-if="selectedItem.parse_status === 'approved'"
           class="btn-primary"

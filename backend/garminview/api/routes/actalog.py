@@ -817,12 +817,18 @@ def reparse_workout(
     workout_id: int,
     session: Session = Depends(get_db),
 ):
-    """Delete any existing parse for a workout and re-run the LLM."""
+    """Delete any existing parse for a workout and re-run the LLM.
+    Refuses to reparse approved, sent, or dismissed records."""
     existing = (
         session.query(ActalogNoteParse)
         .filter(ActalogNoteParse.workout_id == workout_id)
         .first()
     )
+    if existing and existing.parse_status in ("approved", "sent", "dismissed"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot reparse a {existing.parse_status} record"
+        )
     if existing:
         session.delete(existing)
         session.flush()
