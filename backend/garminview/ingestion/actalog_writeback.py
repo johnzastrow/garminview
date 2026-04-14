@@ -141,6 +141,12 @@ def write_back_approved(session, parse_id: int) -> str:
         # 2. Create WODs from parsed JSON if present
         if record.parsed_json:
             parsed = json.loads(record.parsed_json)
+            # Handle double-encoded JSON (string inside string)
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            if not isinstance(parsed, dict):
+                _log.warning("parsed_json for parse %d is not a dict: %s", parse_id, type(parsed))
+                parsed = {}
             wods = parsed.get("wods", [])
 
             if wods:
