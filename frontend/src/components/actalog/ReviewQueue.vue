@@ -43,6 +43,7 @@ const selectedItem = ref<QueueItem | null>(null)
 const editMode = ref(false)
 const editedMarkdown = ref("")
 const pendingCount = ref(0)
+const reparsingSkipped = ref(false)
 
 let searchDebounce: ReturnType<typeof setTimeout> | null = null
 
@@ -126,6 +127,26 @@ async function push() {
     await fetchQueue()
   } catch (e: any) {
     alert(`Push failed: ${e.response?.data?.detail ?? e.message}`)
+  }
+}
+
+async function reparseAllSkipped() {
+  if (!confirm("Reparse all skipped workouts through the LLM? This may take several minutes.")) return
+  reparsingSkipped.value = true
+  try {
+    await api.post("/admin/actalog/parser/reparse-skipped")
+    // Poll until done
+    const poll = setInterval(async () => {
+      const { data } = await api.get("/admin/actalog/parser/status")
+      if (!data.running) {
+        clearInterval(poll)
+        reparsingSkipped.value = false
+        await fetchQueue()
+      }
+    }, 3000)
+  } catch (e: any) {
+    reparsingSkipped.value = false
+    alert(`Reparse failed: ${e.response?.data?.detail ?? e.message}`)
   }
 }
 
@@ -242,6 +263,14 @@ onUnmounted(() => {
       </button>
 
       <span v-if="pendingCount > 0" class="pending-badge">{{ pendingCount }} pending</span>
+
+      <button
+        class="btn-secondary reparse-skipped-btn"
+        :disabled="reparsingSkipped"
+        @click="reparseAllSkipped"
+      >
+        {{ reparsingSkipped ? 'Reparsing...' : 'Reparse All Skipped' }}
+      </button>
     </div>
 
     <!-- Loading -->

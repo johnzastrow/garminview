@@ -98,6 +98,44 @@ def _run_reparse_all_bg(factory) -> None:
         _parser_running = False
 
 
+def _run_reparse_skipped_bg(factory) -> None:
+    """Background task: delete all skipped records and re-parse them with force=True."""
+    global _parser_running
+    try:
+        with factory() as session:
+            # Find all skipped workout IDs before deleting
+            skipped = session.query(ActalogNoteParse.workout_id).filter(
+                ActalogNoteParse.parse_status == "skipped"
+            ).all()
+            workout_ids = [row[0] for row in skipped]
+
+            if not workout_ids:
+                _log.info("No skipped records to reparse")
+                return
+
+            # Delete the skipped records
+            session.query(ActalogNoteParse).filter(
+                ActalogNoteParse.parse_status == "skipped"
+            ).delete(synchronize_session=False)
+            session.commit()
+
+            # Re-parse each with force=True (bypasses regex pre-pass)
+            seed_default_config(session)
+            parser = NotesParser(session)
+            count = 0
+            for wid in workout_ids:
+                try:
+                    parser.parse_workout(wid, force=True)
+                    session.commit()
+                    count += 1
+                except Exception as exc:
+                    _log.warning("Reparse skipped workout %d failed: %s", wid, exc)
+                    session.rollback()
+            _log.info("Reparsed %d/%d skipped workouts", count, len(workout_ids))
+    finally:
+        _parser_running = False
+
+
 # ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
@@ -794,6 +832,33 @@ def reparse_all(
     engine = create_db_engine(config)
     factory = get_session_factory(engine)
     background_tasks.add_task(_run_reparse_all_bg, factory)
+    total_staged = session.query(ActalogNoteParse).count()
+    return ParserJobStatus(running=True, total_staged=total_staged)
+
+
+@parser_router.post("/reparse-skipped", response_model=ParserJobStatus)
+def reparse_skipped(
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_db),
+):
+    """Re-parse all skipped records with force=True (bypasses regex pre-pass). Returns immediately."""
+    global _parser_running
+    from garminview.core.config import get_config
+    from garminview.core.database import create_db_engine, get_session_factory
+    if _parser_running:
+        total_staged = session.query(ActalogNoteParse).count()
+        return ParserJobStatus(running=True, total_staged=total_staged)
+    skipped_count = session.query(ActalogNoteParse).filter(
+        ActalogNoteParse.parse_status == "skipped"
+    ).count()
+    if skipped_count == 0:
+        total_staged = session.query(ActalogNoteParse).count()
+        return ParserJobStatus(running=False, total_staged=total_staged)
+    _parser_running = True
+    config = get_config()
+    engine = create_db_engine(config)
+    factory = get_session_factory(engine)
+    background_tasks.add_task(_run_reparse_skipped_bg, factory)
     total_staged = session.query(ActalogNoteParse).count()
     return ParserJobStatus(running=True, total_staged=total_staged)
 
