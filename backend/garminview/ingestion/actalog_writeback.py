@@ -58,6 +58,9 @@ class ActalogWritebackClient:
                 method, f"{self.base_url}{path}",
                 headers=self._headers(), **kwargs,
             )
+        if resp.status_code >= 400:
+            _log.error("Actalog API error: %s %s → %d: %s",
+                       method, path, resp.status_code, resp.text[:500])
         resp.raise_for_status()
         return resp
 
@@ -160,11 +163,13 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                        parse_id, len(wods),
                        [w.get("name", w) if isinstance(w, dict) else w for w in wods[:5]])
 
+            # Track whether all WOD operations succeed
+            wod_failures = []
+
             if wods:
                 # Fetch existing WODs for dedup — handle various response shapes
                 try:
                     remote_wods = client.get_wods()
-                    # API may return list of dicts or list of strings or a wrapper dict
                     if isinstance(remote_wods, dict):
                         remote_wods = remote_wods.get("wods", remote_wods.get("data", []))
                     existing_wods = set()
@@ -182,7 +187,6 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                     existing_wods = set()
 
                 for wod in wods:
-                    # Handle wod being a dict or a string
                     if isinstance(wod, str):
                         wod_name = wod
                         regime = ""
@@ -202,10 +206,21 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                             _log.info("Created WOD '%s' on Actalog", wod_name)
                         except Exception as exc:
                             _log.warning("Failed to create WOD '%s': %s", wod_name, exc)
+                            wod_failures.append(f"{wod_name}: {exc}")
 
-        # 3. Mark as sent
+        # 3. Mark status based on whether everything succeeded
+        # Only "sent" if notes updated AND all WODs created successfully
+        if wod_failures:
+            record.parse_status = "approved"  # stay approved — needs retry
+            record.error_message = f"Notes updated but WOD creation failed: {'; '.join(wod_failures)}"
+            _log.warning("Parse %d: notes sent but %d WOD(s) failed", parse_id, len(wod_failures))
+            session.commit()
+            client.close()
+            return "approved"
+
         record.parse_status = "sent"
         record.reviewed_at = datetime.now()
+        record.error_message = None  # clear any previous errors
         session.commit()
         client.close()
         return "sent"
