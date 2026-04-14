@@ -17,6 +17,46 @@ from garminview.models.config import AppConfig
 
 _log = logging.getLogger(__name__)
 
+# ── Actalog WOD enum mappings ──────────────────────────────────────────────
+# The parser uses its own enum values (FROM_TIME, STRENGTH, etc.) which must
+# be mapped to Actalog's valid values (from wod_service.go validateWOD).
+
+# Valid Actalog regimes: EMOM, AMRAP, Fastest Time, Slowest Round, Get Stronger, Skills
+_REGIME_MAP = {
+    # Parser values → Actalog values
+    "FOR_TIME": "Fastest Time",
+    "AMRAP": "AMRAP",
+    "EMOM": "EMOM",
+    "STRENGTH": "Get Stronger",
+    "CHIPPER": "Fastest Time",
+    "OTHER": "",               # empty = omit (optional field)
+    "SLOWEST_ROUND": "Slowest Round",
+    "SKILLS": "Skills",
+    # Pass through if already in Actalog format
+    "Fastest Time": "Fastest Time",
+    "Get Stronger": "Get Stronger",
+    "Slowest Round": "Slowest Round",
+    "Skills": "Skills",
+}
+
+# Valid Actalog score types: Time (HH:MM:SS), Rounds+Reps, Max Weight
+_SCORE_TYPE_MAP = {
+    # Parser values → Actalog values
+    "TIME": "Time (HH:MM:SS)",
+    "ROUNDS_REPS": "Rounds+Reps",
+    "WEIGHT": "Max Weight",
+    "REPS": "Rounds+Reps",
+    "CALORIES": "Rounds+Reps",
+    "NONE": "",                # empty = omit (optional field)
+    # Pass through
+    "Time (HH:MM:SS)": "Time (HH:MM:SS)",
+    "Rounds+Reps": "Rounds+Reps",
+    "Max Weight": "Max Weight",
+}
+
+# Valid Actalog types: Benchmark, Hero, Girl, Notables, Games, Endurance, Self-created
+_TYPE_DEFAULT = "Self-created"
+
 
 class ActalogWritebackClient:
     """HTTP client for writing data back to the Actalog API.
@@ -248,8 +288,9 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                         score_type = ""
                     elif isinstance(wod, dict):
                         wod_name = wod.get("name", "")
-                        regime = wod.get("regime", "")
-                        score_type = wod.get("score_type", "")
+                        # Map parser enum values to Actalog's valid values
+                        regime = _REGIME_MAP.get(wod.get("regime", ""), "")
+                        score_type = _SCORE_TYPE_MAP.get(wod.get("score_type", ""), "")
                     else:
                         _log.warning("Unexpected WOD type: %s", type(wod))
                         continue
