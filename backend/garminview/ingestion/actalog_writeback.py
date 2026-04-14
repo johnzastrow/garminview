@@ -31,7 +31,7 @@ class ActalogWritebackClient:
     def login(self) -> None:
         """Authenticate with Actalog API and store JWT token."""
         resp = self.client.post(
-            f"{self.base_url}/auth/login",
+            f"{self.base_url}/api/auth/login",
             json={"email": self.email, "password": self.password},
         )
         resp.raise_for_status()
