@@ -19,49 +19,83 @@ _log = logging.getLogger(__name__)
 
 
 class ActalogWritebackClient:
-    """HTTP client for writing data back to the Actalog API."""
+    """HTTP client for writing data back to the Actalog API.
 
-    def __init__(self, base_url: str, email: str, password: str):
+    Uses refresh_token (from app_config) to avoid hitting the login endpoint
+    repeatedly, which triggers rate limiting on the Actalog API.
+    """
+
+    def __init__(self, base_url: str, email: str, password: str,
+                 refresh_token: str | None = None):
         self.base_url = base_url.rstrip("/")
         self.email = email
         self.password = password
+        self.refresh_token = refresh_token
         self.token: str | None = None
         self.client = httpx.Client(timeout=30)
 
+    def _refresh(self) -> None:
+        """Try to get a new access token using the refresh token."""
+        if not self.refresh_token:
+            raise ValueError("No refresh token available")
+        resp = self.client.post(
+            f"{self.base_url}/api/auth/refresh",
+            json={"refresh_token": self.refresh_token},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        self.token = data.get("token")
+        if "refresh_token" in data:
+            self.refresh_token = data["refresh_token"]
+        _log.info("Authenticated with Actalog API via refresh token")
+
     def login(self) -> None:
-        """Authenticate with Actalog API and store JWT token."""
+        """Authenticate with Actalog API using email/password (fallback)."""
+        import time
+        time.sleep(2)  # rate limit protection
         resp = self.client.post(
             f"{self.base_url}/api/auth/login",
-            json={"email": self.email, "password": self.password},
+            json={"email": self.email, "password": self.password, "remember_me": True},
         )
         resp.raise_for_status()
         data = resp.json()
         self.token = data.get("token") or data.get("access_token")
+        self.refresh_token = data.get("refresh_token")
         if not self.token:
             raise ValueError("No token in login response")
-        _log.info("Authenticated with Actalog API")
+        _log.info("Authenticated with Actalog API via login")
+
+    def authenticate(self) -> None:
+        """Get a valid token — prefer refresh, fall back to login."""
+        if self.refresh_token:
+            try:
+                self._refresh()
+                return
+            except Exception:
+                _log.warning("Refresh token failed, falling back to login")
+        self.login()
 
     def _headers(self) -> dict:
         if not self.token:
-            self.login()
+            self.authenticate()
         return {"Authorization": f"Bearer {self.token}"}
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        """Make an authenticated request, retry once on 401, handle 429 rate limit."""
+        """Make an authenticated request, retry once on 401."""
         import time
         resp = self.client.request(
             method, f"{self.base_url}{path}",
             headers=self._headers(), **kwargs,
         )
         if resp.status_code == 401:
-            time.sleep(1)  # brief pause before re-auth to avoid 429
-            self.login()
+            # Token expired — re-authenticate and retry
+            self.authenticate()
             resp = self.client.request(
                 method, f"{self.base_url}{path}",
                 headers=self._headers(), **kwargs,
             )
         if resp.status_code == 429:
-            retry_after = int(resp.headers.get("Retry-After", "5"))
+            retry_after = int(resp.headers.get("Retry-After", "10"))
             _log.warning("Rate limited, waiting %ds", retry_after)
             time.sleep(retry_after)
             resp = self.client.request(
@@ -126,11 +160,15 @@ def _get_client_from_config(session) -> ActalogWritebackClient:
     url = cfg("actalog_url")
     email = cfg("actalog_email")
     password = cfg("actalog_password")
+    refresh_token = cfg("actalog_refresh_token")
 
     if not url or not email or not password:
         raise ValueError("Actalog connection not configured (URL, email, or password missing)")
 
-    return ActalogWritebackClient(base_url=url, email=email, password=password)
+    return ActalogWritebackClient(
+        base_url=url, email=email, password=password,
+        refresh_token=refresh_token,
+    )
 
 
 def write_back_approved(session, parse_id: int, edited_markdown: str | None = None) -> str:
@@ -238,6 +276,12 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
         record.parse_status = "sent"
         record.reviewed_at = datetime.now()
         record.error_message = None  # clear any previous errors
+
+        # Save refresh token back to app_config so it stays fresh
+        if client.refresh_token:
+            from garminview.core.startup import _set_actalog_cfg
+            _set_actalog_cfg(session, "actalog_refresh_token", client.refresh_token)
+
         session.commit()
         client.close()
         return "sent"
