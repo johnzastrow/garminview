@@ -73,7 +73,7 @@ async function saveSettingsConfig() {
   settingsMsg.value = ""
   try {
     await Promise.all([
-      api.post("/admin/actalog/config", {
+      api.put("/admin/actalog/config", {
         url: settingsForm.value.url,
         email: settingsForm.value.email,
         password: settingsForm.value.password || undefined,
