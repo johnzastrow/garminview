@@ -74,10 +74,12 @@ class ActalogWritebackClient:
         resp = self._request("GET", "/api/wods")
         return resp.json()
 
-    def create_wod(self, name: str, regime: str = "", score_type: str = "") -> dict:
-        """Create a new WOD in Actalog."""
+    def create_wod(self, name: str, regime: str = "", score_type: str = "",
+                   source: str = "GarminView") -> dict:
+        """Create a new WOD in Actalog. Source is required by the API."""
         resp = self._request("POST", "/api/wods", json={
             "name": name,
+            "source": source,
             "regime": regime,
             "score_type": score_type,
         })
