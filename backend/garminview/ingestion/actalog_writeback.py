@@ -47,13 +47,23 @@ class ActalogWritebackClient:
         return {"Authorization": f"Bearer {self.token}"}
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
-        """Make an authenticated request, retry once on 401."""
+        """Make an authenticated request, retry once on 401, handle 429 rate limit."""
+        import time
         resp = self.client.request(
             method, f"{self.base_url}{path}",
             headers=self._headers(), **kwargs,
         )
         if resp.status_code == 401:
+            time.sleep(1)  # brief pause before re-auth to avoid 429
             self.login()
+            resp = self.client.request(
+                method, f"{self.base_url}{path}",
+                headers=self._headers(), **kwargs,
+            )
+        if resp.status_code == 429:
+            retry_after = int(resp.headers.get("Retry-After", "5"))
+            _log.warning("Rate limited, waiting %ds", retry_after)
+            time.sleep(retry_after)
             resp = self.client.request(
                 method, f"{self.base_url}{path}",
                 headers=self._headers(), **kwargs,
@@ -75,11 +85,16 @@ class ActalogWritebackClient:
         return resp.json()
 
     def create_wod(self, name: str, regime: str = "", score_type: str = "",
-                   source: str = "GarminView") -> dict:
-        """Create a new WOD in Actalog. Source is required by the API."""
+                   source: str = "GarminView", wod_type: str = "Self-created") -> dict:
+        """Create a new WOD in Actalog.
+
+        Required fields: name, source, type.
+        Valid types: Benchmark, Hero, Girl, Notables, Games, Endurance, Self-created.
+        """
         resp = self._request("POST", "/api/wods", json={
             "name": name,
             "source": source,
+            "type": wod_type,
             "regime": regime,
             "score_type": score_type,
         })
