@@ -150,17 +150,46 @@ def write_back_approved(session, parse_id: int) -> str:
             wods = parsed.get("wods", [])
 
             if wods:
-                existing_wods = {w.get("name", "").lower() for w in client.get_wods() if w.get("name")}
+                # Fetch existing WODs for dedup — handle various response shapes
+                try:
+                    remote_wods = client.get_wods()
+                    # API may return list of dicts or list of strings or a wrapper dict
+                    if isinstance(remote_wods, dict):
+                        remote_wods = remote_wods.get("wods", remote_wods.get("data", []))
+                    existing_wods = set()
+                    for w in remote_wods:
+                        if isinstance(w, dict):
+                            name = w.get("name", "")
+                        elif isinstance(w, str):
+                            name = w
+                        else:
+                            continue
+                        if name:
+                            existing_wods.add(name.lower())
+                except Exception as exc:
+                    _log.warning("Could not fetch existing WODs: %s — skipping dedup", exc)
+                    existing_wods = set()
 
                 for wod in wods:
-                    wod_name = wod.get("name", "")
+                    # Handle wod being a dict or a string
+                    if isinstance(wod, str):
+                        wod_name = wod
+                        regime = ""
+                        score_type = ""
+                    elif isinstance(wod, dict):
+                        wod_name = wod.get("name", "")
+                        regime = wod.get("regime", "")
+                        score_type = wod.get("score_type", "")
+                    else:
+                        _log.warning("Unexpected WOD type: %s", type(wod))
+                        continue
+
                     if wod_name and wod_name.lower() not in existing_wods:
-                        client.create_wod(
-                            name=wod_name,
-                            regime=wod.get("regime", ""),
-                            score_type=wod.get("score_type", ""),
-                        )
-                        _log.info("Created WOD '%s' on Actalog", wod_name)
+                        try:
+                            client.create_wod(name=wod_name, regime=regime, score_type=score_type)
+                            _log.info("Created WOD '%s' on Actalog", wod_name)
+                        except Exception as exc:
+                            _log.warning("Failed to create WOD '%s': %s", wod_name, exc)
 
         # 3. Mark as sent
         record.parse_status = "sent"
