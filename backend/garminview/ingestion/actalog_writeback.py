@@ -240,8 +240,9 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
         # Prefer the explicitly passed edited_markdown (from the approve endpoint)
         # over the DB value, to ensure human edits are always sent
         markdown = edited_markdown or workout.formatted_notes or workout.notes
+        actalog_response = None
         if markdown:
-            client.update_workout_notes(workout.id, markdown)
+            actalog_response = client.update_workout_notes(workout.id, markdown)
             _log.info("Updated notes for workout %d on Actalog", workout.id)
 
         # 2. Create WODs from parsed JSON if present
@@ -324,6 +325,23 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
         record.parse_status = "sent"
         record.reviewed_at = datetime.now()
         record.error_message = None  # clear any previous errors
+
+        # Store what was sent and Actalog's confirmation in parsed_json
+        # so the UI can show "this is what Actalog has"
+        try:
+            parsed_data = json.loads(record.parsed_json) if record.parsed_json else {}
+            if isinstance(parsed_data, str):
+                parsed_data = json.loads(parsed_data)
+            if not isinstance(parsed_data, dict):
+                parsed_data = {}
+            parsed_data["_sent_markdown"] = markdown
+            parsed_data["_sent_at"] = datetime.now().isoformat()
+            if actalog_response and isinstance(actalog_response, dict):
+                # Store Actalog's confirmed notes from the response
+                parsed_data["_actalog_confirmed_notes"] = actalog_response.get("notes", "")
+            record.parsed_json = json.dumps(parsed_data)
+        except Exception:
+            pass  # don't fail the whole operation over metadata
 
         # Save refresh token back to app_config so it stays fresh
         if client.refresh_token:

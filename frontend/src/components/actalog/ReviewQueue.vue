@@ -331,11 +331,23 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <!-- Sent notice -->
+      <div v-if="selectedItem.parse_status === 'sent'" class="sent-notice">
+        <strong>&#x2714; Sent to Actalog</strong>
+        <span v-if="parsedData?._sent_at"> on {{ new Date(parsedData._sent_at).toLocaleString() }}</span>
+        <p>The version on Actalog may include your edits that aren't reflected in the preview above.</p>
+      </div>
+
+      <!-- Error notice for failed push -->
+      <div v-if="selectedItem.parse_status === 'approved' && selectedItem.error_message" class="error-notice">
+        <strong>&#x26a0; Push failed:</strong> {{ selectedItem.error_message }}
+      </div>
+
       <!-- Actions -->
       <div class="actions">
-        <button class="btn-success" @click="approve">Approve (a)</button>
-        <button class="btn-danger" @click="reject">Reject (r)</button>
-        <button class="btn-secondary" @click="reparse">Reparse</button>
+        <button v-if="selectedItem.parse_status === 'pending'" class="btn-success" @click="approve">Approve (a)</button>
+        <button v-if="selectedItem.parse_status === 'pending'" class="btn-danger" @click="reject">Reject (r)</button>
+        <button v-if="selectedItem.parse_status !== 'sent'" class="btn-secondary" @click="reparse">Reparse</button>
         <button
           v-if="selectedItem.parse_status === 'approved'"
           class="btn-primary"
@@ -343,11 +355,11 @@ onUnmounted(() => {
         >
           Push to Actalog
         </button>
-        <button class="btn-secondary" @click="saveEdits" :disabled="!editMode">Save Edits</button>
+        <button v-if="selectedItem.parse_status === 'pending'" class="btn-secondary" @click="saveEdits" :disabled="!editMode">Save Edits</button>
       </div>
 
       <!-- Keyboard shortcuts hint -->
-      <div class="shortcuts">a=approve r=reject n=next e=edit</div>
+      <div v-if="selectedItem.parse_status === 'pending'" class="shortcuts">a=approve r=reject n=next e=edit</div>
     </div>
   </div>
 </template>
@@ -629,4 +641,24 @@ onUnmounted(() => {
 .muted { color: var(--muted); font-size: 0.85rem; padding: 24px 0; }
 .muted-text { color: var(--muted); font-size: 0.83rem; }
 .empty { color: var(--muted); font-size: 0.85rem; padding: 24px 0; text-align: center; }
+/* Sent/error notices */
+.sent-notice {
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  color: #1e40af;
+  font-size: 0.85rem;
+}
+.sent-notice p { margin: 4px 0 0; opacity: 0.8; }
+.error-notice {
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin: 10px 0;
+  color: #991b1b;
+  font-size: 0.85rem;
+}
 </style>
