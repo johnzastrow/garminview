@@ -1,0 +1,11 @@
+# Local development — build from source instead of pulling images
+services:
+  backend:
+    build:
+      context: ./backend
+    image: ghcr.io/johnzastrow/garminview-backend:local
+
+  frontend:
+    build:
+      context: ./frontend
+    image: ghcr.io/johnzastrow/garminview-frontend:local

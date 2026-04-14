@@ -712,7 +712,7 @@ def approve_parse(
     # Trigger write-back to Actalog API (failure keeps status=approved)
     try:
         from garminview.ingestion.actalog_writeback import write_back_approved
-        final_status = write_back_approved(session, parse_id)
+        final_status = write_back_approved(session, parse_id, edited_markdown=markdown)
         _log.info("Parse %d: approve -> %s", parse_id, final_status)
     except Exception as exc:
         _log.warning("Write-back failed for parse %d: %s", parse_id, exc)

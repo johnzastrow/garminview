@@ -113,9 +113,15 @@ def _get_client_from_config(session) -> ActalogWritebackClient:
     return ActalogWritebackClient(base_url=url, email=email, password=password)
 
 
-def write_back_approved(session, parse_id: int) -> str:
+def write_back_approved(session, parse_id: int, edited_markdown: str | None = None) -> str:
     """
     Push an approved parse record to the Actalog API.
+
+    Args:
+        session: SQLAlchemy session
+        parse_id: ID of the actalog_note_parses record
+        edited_markdown: If provided, use this instead of DB value (ensures
+                         human edits are sent even if session caching is stale)
 
     Returns "sent" on success, "approved" on failure (stays approved locally).
     """
@@ -133,7 +139,9 @@ def write_back_approved(session, parse_id: int) -> str:
         client = _get_client_from_config(session)
 
         # 1. Update workout notes with approved Markdown
-        markdown = workout.formatted_notes or workout.notes
+        # Prefer the explicitly passed edited_markdown (from the approve endpoint)
+        # over the DB value, to ensure human edits are always sent
+        markdown = edited_markdown or workout.formatted_notes or workout.notes
         if markdown:
             client.update_workout_notes(workout.id, markdown)
             _log.info("Updated notes for workout %d on Actalog", workout.id)
@@ -148,6 +156,9 @@ def write_back_approved(session, parse_id: int) -> str:
                 _log.warning("parsed_json for parse %d is not a dict: %s", parse_id, type(parsed))
                 parsed = {}
             wods = parsed.get("wods", [])
+            _log.info("Parse %d: found %d WOD(s) in parsed_json: %s",
+                       parse_id, len(wods),
+                       [w.get("name", w) if isinstance(w, dict) else w for w in wods[:5]])
 
             if wods:
                 # Fetch existing WODs for dedup — handle various response shapes
@@ -184,6 +195,7 @@ def write_back_approved(session, parse_id: int) -> str:
                         _log.warning("Unexpected WOD type: %s", type(wod))
                         continue
 
+                    _log.info("  WOD '%s': exists=%s", wod_name, wod_name.lower() in existing_wods if wod_name else "empty")
                     if wod_name and wod_name.lower() not in existing_wods:
                         try:
                             client.create_wod(name=wod_name, regime=regime, score_type=score_type)
