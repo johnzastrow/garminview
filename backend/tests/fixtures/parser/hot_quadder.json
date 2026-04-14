@@ -1,0 +1,25 @@
+{
+  "workout_name": "Quick Log Sat, Jan 3, 2026",
+  "workout_date": "2026-01-03",
+  "error": "Invalid JSON: Expecting ',' delimiter",
+  "raw_notes": "Bench Press 1x2\n\n*Start Moderate and end Heavy.\n\n(Score is Weight)\n\nRPE: 9\n\nHot Quadder\n\nScore Rounds and Reps\n\nAMRAP 12\n\n6/8 Cal Bike*\n\n15 Wall Balls (14/20#)\n\n10 Burpee Box Jump Overs (20/24\")\n\n*C2: 10/12\n\n(Score is Rounds + Reps)\n\nINTERMEDIATE\n\nAMRAP 12\n\n5/6 Cal Bike*\n\n15 Wall Balls (10/14#)\n\n10 Burpee Box Jump Overs (16/20\")\n\n*C2: 8/10\n\nFOUNDATIONS\n\nAMRAP 12\n\n5/6 Cal Bike* or :30 seconds\n\n10 Wall Ball Thrusters (10/14#)\n\n10 Elevated Burpee Box Step Overs (up to 16\")\n\n*C2: 8/10\n\nSCORE = Rounds and Reps\n\nWOD TYPE: EFFORT\n\nIntended Stimulus: 6-7 Rounds\n\nRPE: 8",
+  "expected": {
+    "content_class": "WORKOUT",
+    "wods": [
+      {
+        "name": "Bench Press",
+        "regime": "STRENGTH",
+        "score_type": "WEIGHT",
+        "rpe": 9
+      },
+      {
+        "name": "Hot Quadder",
+        "regime": "AMRAP",
+        "score_type": "ROUNDS_REPS",
+        "rpe": 8,
+        "intended_stimulus": "6-7 Rounds"
+      }
+    ],
+    "formatted_markdown_contains": ["## Bench Press", "## Hot Quadder", "AMRAP 12", "Wall Balls", "INTERMEDIATE", "FOUNDATIONS"]
+  }
+}

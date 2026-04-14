@@ -1,0 +1,19 @@
+{
+  "workout_name": "Quick Log Sat, Dec 20, 2025",
+  "workout_date": "2025-12-20",
+  "error": "Invalid JSON: Expecting ',' delimiter",
+  "raw_notes": "Leg Daze\n\nScore Time\n\nRX\n\n2 Rounds for Time\n\n50 /60 Cal Bike\n\n50 DB Farmer Step-Ups (35/50#) (20/24\")\n\n25 Box Jumps (24/30\")\n\n(Score is Time)\n\nINTERMEDIATE\n\n2 Rounds for Time\n\n40/50 Cal Bike\n\n40 DB Farmer Step-Ups (20/35#)|(20/24\")\n\n25 Box Jumps (20/24\")\n\nFOUNDATIONS\n\nAMRAP or 2 Rounds for Time\n\n30/40 Cal Bike\n\n30 DB Farmer Step-Ups (up to 15/20#)|(up 16\")\n\n20 Box/Plate Jumps/Steps (up to 16\")\n\nSCORE = Time\n\nWOD TYPE: GRIND\n\nIntended Stimulus: 25-29 minutes\n\nRPE: 8\n\nPartner Workout Option\n\nIN TEAMS OF 2...\n\nScore Time\n\n2 ROUNDS FOR TIME*\n\n85/100 Cal Bike**\n\n80 DB Farmer Step-Ups (Athlete Choice)\n\n50 Box Jumps (Athlete Choice)\n\n*P1 works while P2 rests. Split work as needed.\n\n(Score is Time)",
+  "expected": {
+    "content_class": "WORKOUT",
+    "wods": [
+      {
+        "name": "Leg Daze",
+        "regime": "FOR_TIME",
+        "score_type": "TIME",
+        "rpe": 8,
+        "intended_stimulus": "25-29 minutes"
+      }
+    ],
+    "formatted_markdown_contains": ["## Leg Daze", "2 Rounds for Time", "Farmer Step-Ups", "Box Jumps", "INTERMEDIATE", "FOUNDATIONS", "Partner"]
+  }
+}

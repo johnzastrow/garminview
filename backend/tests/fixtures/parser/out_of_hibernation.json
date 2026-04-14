@@ -1,0 +1,25 @@
+{
+  "workout_name": "Quick Log Sun, Dec 21, 2025",
+  "workout_date": "2025-12-21",
+  "error": "Invalid JSON: Expecting value: line 1 column 1 (char 0)",
+  "raw_notes": "Bench Press 1x2\n\nRPE: 8\n\nOut of Hibernation\n\nScore Rounds and Reps\n\nRX\n\nAMRAP 15\n\n100ft Bear Crawl\n\n20 Burpees\n\n20 Toes to Places or Tuck Ups\n\n20 Plate Ground to Overhead (Athlete Choice)\n\n(Score is Rounds + Reps)\n\nSCORE = Rounds and Reps\n\nWOD TYPE: EFFORT\n\nIntended Stimulus: 2-3 Rounds\n\nRPE: 7",
+  "expected": {
+    "content_class": "WORKOUT",
+    "wods": [
+      {
+        "name": "Bench Press",
+        "regime": "STRENGTH",
+        "score_type": "WEIGHT",
+        "rpe": 8
+      },
+      {
+        "name": "Out of Hibernation",
+        "regime": "AMRAP",
+        "score_type": "ROUNDS_REPS",
+        "rpe": 7,
+        "intended_stimulus": "2-3 Rounds"
+      }
+    ],
+    "formatted_markdown_contains": ["## Bench Press", "## Out of Hibernation", "AMRAP 15", "Bear Crawl", "Burpees"]
+  }
+}

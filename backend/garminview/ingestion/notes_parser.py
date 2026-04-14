@@ -373,6 +373,25 @@ class NotesParser:
 
         # Pydantic validation
         parsed, error = self._validate(raw_json)
+
+        # Try JSON repair before giving up
+        if error and "JSON" in error:
+            repaired = self._repair_json(raw_json or "")
+            if repaired:
+                raw_json = repaired
+                parsed, error = self._validate(raw_json)
+
+        # Retry once with JSON emphasis if first attempt failed
+        if error:
+            retry_suffix = "\n\nIMPORTANT: Return ONLY a valid JSON object. No markdown, no text before or after. Ensure all commas and brackets are correct."
+            raw_json2, error2, timing2 = self._call_ollama(
+                ollama_url, model, system_prompt + retry_suffix, notes
+            )
+            if not error2:
+                parsed2, error2 = self._validate(raw_json2)
+                if not error2:
+                    raw_json, error, parsed, timing = raw_json2, None, parsed2, timing2
+
         if error:
             return self._write_staging(workout, notes, "SKIP", raw_json, None, error, model, timing)
 
@@ -447,7 +466,7 @@ class NotesParser:
                     "stream": False,
                     "options": {"temperature": 0.1},
                 },
-                timeout=300,
+                timeout=600 if len(note) > 800 else 300,
             )
             resp.raise_for_status()
             body = resp.json()
@@ -459,9 +478,37 @@ class NotesParser:
             }
             return body["response"], None, timing
         except httpx.TimeoutException:
-            return None, "Ollama request timed out (>300s)", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+            return None, f"Ollama request timed out (>{timeout}s)", {"parse_duration_s": round(time.monotonic() - t0, 3)}
         except Exception as exc:
             return None, f"Ollama error: {exc}", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+
+    @staticmethod
+    def _repair_json(raw: str) -> str | None:
+        """Attempt to fix common LLM JSON formatting errors.
+
+        Common issues:
+        - Trailing commas before } or ]
+        - Missing commas between array/object elements
+        - Unescaped quotes in strings
+        - Text before/after the JSON object
+        """
+        import re
+
+        # Extract JSON object if wrapped in markdown code block or extra text
+        match = re.search(r'\{[\s\S]*\}', raw)
+        if not match:
+            return None
+        extracted = match.group(0)
+
+        # Remove trailing commas before } or ]
+        fixed = re.sub(r',\s*([}\]])', r'\1', extracted)
+
+        # Try parsing
+        try:
+            json.loads(fixed)
+            return fixed
+        except json.JSONDecodeError:
+            return None
 
     def _validate(self, raw: str) -> tuple[ParsedNoteSchema | None, str | None]:
         """Parse and validate LLM JSON output. Returns (schema, error)."""

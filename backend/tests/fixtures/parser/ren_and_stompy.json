@@ -1,0 +1,19 @@
+{
+  "workout_name": "Quick Log Sun, Dec 28, 2025",
+  "workout_date": "2025-12-28",
+  "error": "Invalid JSON: Expecting value: line 1 column 1 (char 0)",
+  "raw_notes": "Ren and Stompy\n\nScore Rounds and Reps\n\nAMRAP x 25 MINUTES\n\n800m Row or 1.2m Bike\n\n10 DB Renegade Rows* (Athlete Choice)\n\n20 Alt. DB Slides\n\n40 Walking Lunges\n\n*1 Rep= Row (R) + Row (L) + Push-Up.\n\n(Score is Rounds + Reps)\n\nSCORE = Rounds + Reps\n\nWOD TYPE: GRIND\n\nIntended Stimulus: 2.5-3.5 Rounds and Reps\n\nRPE: 7",
+  "expected": {
+    "content_class": "WORKOUT",
+    "wods": [
+      {
+        "name": "Ren and Stompy",
+        "regime": "AMRAP",
+        "score_type": "ROUNDS_REPS",
+        "rpe": 7,
+        "intended_stimulus": "2.5-3.5 Rounds and Reps"
+      }
+    ],
+    "formatted_markdown_contains": ["## Ren and Stompy", "AMRAP", "25", "Renegade Rows", "Walking Lunges"]
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "workout_name": "Christmas Eve workout",
+  "workout_date": "2025-12-24",
+  "error": "Ollama request timed out (>300s)",
+  "raw_notes": "The 12 Slays of Fitmas\n\nEdit\n\nScore Time\n\n+ Video\n\nRX:\n\nFor Time*\n\nDay 1 - Ring Muscle-Up\n\nDay 2 - 200m Row or .2/.3 mile Bike\n\nDay 3 - DB Power Cleans (35/50s#)\n\nDay 4 - Pull-Ups\n\nDay 5 - Box Jumps (20/24\")\n\nDay 6 - DB Front Squats\n\nDay 7 - Toes-to-Bar\n\nDay 8 - Alternating Jumping Lunges\n\nDay 9 - DB Shoulder-to-Overhead\n\nDay 10 - DB Goblet Sit-Ups**\n\nDay 11 - No-Push-Up Renegade Rows***\n\nDay 12 - DB Thrusters\n\nINTERMEDIATE:\n\nFor Time*\n\nDay 1 - Strict Pull-Up\n\nDay 2 - 200m Row / .2/.3 mile Bike\n\nDay 3 - DB Power Cleans (20/35s#)\n\nDay 4 - Jumping Pull-Ups\n\nDay 5 - Box Jumps (16/20\")\n\nDay 6 - DB Front Squats\n\nDay 7 - Knees-to-Chest\n\nDay 8 - Alternating Jumping Lunges\n\nDay 9 - DB Shoulder-to-Overhead\n\nDay 10 - DB Goblet Sit-Ups**\n\nDay 11 - No-Push-Up Renegade Rows***\n\nDay 12 - DB Thrusters\n\nFOUNDATIONS:\n\nFor Time*\n\nDay 1 - Ring Row\n\nDay 2 - 200m Row or .2/ .3 mile Bike\n\nDay 3 - DB Hang Power Cleans (up to 20s#)\n\nDay 4 - Jumping Pull-Ups\n\nDay 5 - Box Jumps (12/16\")\n\nDay 6 - Goblet Squats\n\nDay 7 - Toes-to-Rig\n\nDay 8 - Alternating Lunges\n\nDay 9 - DB Shoulder-to-Overhead\n\nDay 10 - Leg Rainbows Over DB\n\nDay 11 - Low Bear No-Push-Up Renegade Rows***\n\nDay 12 - DB Thrusters\n\n*1 Rep = Row R + Row L\n\n(Score = Time)\n\nSCORE = For Time\n\nWOD TYPE: GRIND\n\nIntended Stimulus: 36-40 Minutes\n\nRPE: 9",
+  "expected": {
+    "content_class": "WORKOUT",
+    "wods": [
+      {
+        "name": "The 12 Slays of Fitmas",
+        "regime": "FOR_TIME",
+        "score_type": "TIME",
+        "rpe": 9,
+        "intended_stimulus": "36-40 Minutes"
+      }
+    ],
+    "formatted_markdown_contains": ["## The 12 Slays of Fitmas", "For Time", "Ring Muscle-Up", "DB Thrusters", "INTERMEDIATE", "FOUNDATIONS"]
+  }
+}
