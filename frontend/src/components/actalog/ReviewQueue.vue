@@ -35,7 +35,7 @@ interface ParsedWod {
 // ── State ───────────────────────────────────────────────────────────
 const items = ref<QueueItem[]>([])
 const loading = ref(false)
-const statusFilter = ref<"pending" | "approved" | "rejected" | "sent" | "all">("pending")
+const statusFilter = ref<"pending" | "approved" | "rejected" | "sent" | "skipped" | "dismissed" | "all">("pending")
 const contentClassFilter = ref("")
 const searchQuery = ref("")
 const sortOrder = ref<"desc" | "asc">("desc")
@@ -130,6 +130,18 @@ async function push() {
   }
 }
 
+async function dismiss() {
+  if (!selectedItem.value) return
+  try {
+    await api.post(`/admin/actalog/parser/dismiss/${selectedItem.value.id}`)
+    const currentId = selectedItem.value.id
+    await fetchQueue()
+    nextPending(currentId)
+  } catch (e: any) {
+    alert(`Dismiss failed: ${e.response?.data?.detail ?? e.message}`)
+  }
+}
+
 async function reparseAllSkipped() {
   if (!confirm("Reparse all skipped workouts through the LLM? This may take several minutes.")) return
   reparsingSkipped.value = true
@@ -208,6 +220,10 @@ function onKeydown(e: KeyboardEvent) {
       e.preventDefault()
       editMode.value = !editMode.value
       break
+    case "d":
+      e.preventDefault()
+      dismiss()
+      break
   }
 }
 
@@ -240,6 +256,8 @@ onUnmounted(() => {
         <option value="approved">Approved</option>
         <option value="rejected">Rejected</option>
         <option value="sent">Sent</option>
+        <option value="skipped">Skipped</option>
+        <option value="dismissed">Dismissed</option>
         <option value="all">All</option>
       </select>
 
@@ -376,7 +394,7 @@ onUnmounted(() => {
       <div class="actions">
         <button v-if="selectedItem.parse_status === 'pending'" class="btn-success" @click="approve">Approve (a)</button>
         <button v-if="selectedItem.parse_status === 'pending'" class="btn-danger" @click="reject">Reject (r)</button>
-        <button v-if="selectedItem.parse_status !== 'sent'" class="btn-secondary" @click="reparse">Reparse</button>
+        <button v-if="selectedItem.parse_status !== 'sent' && selectedItem.parse_status !== 'dismissed'" class="btn-secondary" @click="reparse">Reparse</button>
         <button
           v-if="selectedItem.parse_status === 'approved'"
           class="btn-primary"
@@ -384,11 +402,18 @@ onUnmounted(() => {
         >
           Push to Actalog
         </button>
+        <button
+          v-if="selectedItem.parse_status !== 'sent' && selectedItem.parse_status !== 'dismissed'"
+          class="btn-muted"
+          @click="dismiss"
+        >
+          Dismiss (d)
+        </button>
         <button v-if="selectedItem.parse_status === 'pending'" class="btn-secondary" @click="saveEdits" :disabled="!editMode">Save Edits</button>
       </div>
 
       <!-- Keyboard shortcuts hint -->
-      <div v-if="selectedItem.parse_status === 'pending'" class="shortcuts">a=approve r=reject n=next e=edit</div>
+      <div v-if="selectedItem.parse_status === 'pending'" class="shortcuts">a=approve r=reject d=dismiss n=next e=edit</div>
     </div>
   </div>
 </template>
@@ -478,6 +503,9 @@ onUnmounted(() => {
 .badge-status-approved  { background: #dcfce7; color: #22c55e; }
 .badge-status-rejected  { background: #fee2e2; color: #ef4444; }
 .badge-status-sent      { background: #dbeafe; color: #3b82f6; }
+.badge-status-skipped   { background: #f3f4f6; color: #6b7280; }
+.badge-status-dismissed { background: #e5e7eb; color: #9ca3af; }
+.btn-muted { background: #e5e7eb; color: #6b7280; border: 1px solid #d1d5db; }
 .badge-class-workout         { background: #dbeafe; color: #3b82f6; }
 .badge-class-mixed           { background: #f3e8ff; color: #a855f7; }
 .badge-class-performance_only { background: #ffedd5; color: #f97316; }

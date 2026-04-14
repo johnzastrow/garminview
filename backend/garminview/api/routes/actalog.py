@@ -87,8 +87,10 @@ def _run_reparse_all_bg(factory) -> None:
     global _parser_running
     try:
         with factory() as session:
+            # Delete non-approved, non-dismissed records for re-parsing
+            # Dismissed records are permanently ignored
             session.query(ActalogNoteParse).filter(
-                ActalogNoteParse.parse_status != "approved"
+                ActalogNoteParse.parse_status.notin_(["approved", "sent", "dismissed"])
             ).delete(synchronize_session=False)
             session.commit()
             seed_default_config(session, update_prompt=True)
@@ -104,6 +106,7 @@ def _run_reparse_skipped_bg(factory) -> None:
     try:
         with factory() as session:
             # Find all skipped workout IDs before deleting
+            # Exclude dismissed — those are permanently ignored
             skipped = session.query(ActalogNoteParse.workout_id).filter(
                 ActalogNoteParse.parse_status == "skipped"
             ).all()
@@ -113,7 +116,7 @@ def _run_reparse_skipped_bg(factory) -> None:
                 _log.info("No skipped records to reparse")
                 return
 
-            # Delete the skipped records
+            # Delete only skipped records (not dismissed)
             session.query(ActalogNoteParse).filter(
                 ActalogNoteParse.parse_status == "skipped"
             ).delete(synchronize_session=False)
@@ -789,6 +792,21 @@ def reject_parse(
     if not record:
         raise HTTPException(status_code=404, detail="Parse record not found")
     record.parse_status = "rejected"
+    record.reviewed_at = datetime.now()
+    session.commit()
+    return _parse_item(record, session)
+
+
+@parser_router.post("/dismiss/{parse_id}", response_model=NoteParseItem)
+def dismiss_parse(
+    parse_id: int,
+    session: Session = Depends(get_db),
+):
+    """Dismiss a parse record. Hidden from default queue, never reprocessed."""
+    record = session.get(ActalogNoteParse, parse_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Parse record not found")
+    record.parse_status = "dismissed"
     record.reviewed_at = datetime.now()
     session.commit()
     return _parse_item(record, session)

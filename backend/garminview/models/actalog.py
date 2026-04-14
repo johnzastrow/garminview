@@ -73,7 +73,7 @@ class ActalogNoteParse(Base):
     content_class: Mapped[str | None] = mapped_column(String(32))   # WORKOUT | MIXED | PERFORMANCE_ONLY | SKIP
     raw_notes: Mapped[str | None] = mapped_column(Text)
     parsed_json: Mapped[str | None] = mapped_column(Text)
-    parse_status: Mapped[str | None] = mapped_column(String(16))    # pending | approved | rejected | sent | skipped
+    parse_status: Mapped[str | None] = mapped_column(String(16))    # pending | approved | rejected | sent | skipped | dismissed
     parsed_at: Mapped[datetime | None] = mapped_column(DateTime)
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
     error_message: Mapped[str | None] = mapped_column(Text)
