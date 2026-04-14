@@ -300,6 +300,13 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                         try:
                             client.create_wod(name=wod_name, regime=regime, score_type=score_type)
                             _log.info("Created WOD '%s' on Actalog", wod_name)
+                        except httpx.HTTPStatusError as exc:
+                            # "already exists" is success — dedup check may miss due to pagination
+                            if exc.response.status_code == 500 and "already exists" in exc.response.text:
+                                _log.info("WOD '%s' already exists on Actalog (OK)", wod_name)
+                            else:
+                                _log.warning("Failed to create WOD '%s': %s", wod_name, exc)
+                                wod_failures.append(f"{wod_name}: {exc}")
                         except Exception as exc:
                             _log.warning("Failed to create WOD '%s': %s", wod_name, exc)
                             wod_failures.append(f"{wod_name}: {exc}")
