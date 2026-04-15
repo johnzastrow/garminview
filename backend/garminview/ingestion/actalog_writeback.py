@@ -58,6 +58,65 @@ _SCORE_TYPE_MAP = {
 _TYPE_DEFAULT = "Self-created"
 
 
+def _build_wod_description(wod: dict) -> str:
+    """Build a human-readable WOD description from parsed data.
+
+    Includes movements from the RX tier (or top-level), plus
+    intended stimulus and RPE if available.
+    """
+    lines = []
+
+    # Regime header
+    regime = wod.get("regime", "")
+    time_cap = wod.get("time_cap_min")
+    if regime and time_cap:
+        lines.append(f"{regime} {time_cap} min")
+    elif regime:
+        lines.append(regime)
+
+    # Movements — prefer scaling_tiers.rx, fall back to top-level movements
+    movements = []
+    tiers = wod.get("scaling_tiers", {})
+    if isinstance(tiers, dict) and tiers.get("rx"):
+        movements = tiers["rx"]
+    elif wod.get("movements"):
+        movements = wod["movements"]
+
+    for m in movements:
+        if isinstance(m, dict):
+            name = m.get("movement", "")
+            reps = m.get("reps")
+            sets = m.get("sets")
+            weight = m.get("weight_lbs")
+            notes = m.get("notes", "")
+
+            parts = []
+            if sets and reps:
+                parts.append(f"{sets}x{reps}")
+            elif reps:
+                parts.append(str(reps))
+            parts.append(name)
+            if weight:
+                parts.append(f"({weight}#)")
+            if notes:
+                parts.append(f"— {notes}")
+            lines.append(" ".join(parts))
+        elif isinstance(m, str):
+            lines.append(m)
+
+    # Intended stimulus
+    stimulus = wod.get("intended_stimulus")
+    if stimulus:
+        lines.append(f"\nIntended Stimulus: {stimulus}")
+
+    # RPE
+    rpe = wod.get("rpe")
+    if rpe:
+        lines.append(f"RPE: {rpe}")
+
+    return "\n".join(lines)
+
+
 class ActalogWritebackClient:
     """HTTP client for writing data back to the Actalog API.
 
@@ -159,19 +218,23 @@ class ActalogWritebackClient:
         return resp.json()
 
     def create_wod(self, name: str, regime: str = "", score_type: str = "",
-                   source: str = "GarminView", wod_type: str = "Self-created") -> dict:
+                   source: str = "GarminView", wod_type: str = "Self-created",
+                   description: str = "") -> dict:
         """Create a new WOD in Actalog.
 
         Required fields: name, source, type.
         Valid types: Benchmark, Hero, Girl, Notables, Games, Endurance, Self-created.
         """
-        resp = self._request("POST", "/api/wods", json={
+        payload = {
             "name": name,
             "source": source,
             "type": wod_type,
             "regime": regime,
             "score_type": score_type,
-        })
+        }
+        if description:
+            payload["description"] = description
+        resp = self._request("POST", "/api/wods", json=payload)
         return resp.json()
 
     def get_movements(self) -> list[dict]:
@@ -292,6 +355,8 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                         # Map parser enum values to Actalog's valid values
                         regime = _REGIME_MAP.get(wod.get("regime", ""), "")
                         score_type = _SCORE_TYPE_MAP.get(wod.get("score_type", ""), "")
+                        # Build description from movements/scaling tiers
+                        description = _build_wod_description(wod)
                     else:
                         _log.warning("Unexpected WOD type: %s", type(wod))
                         continue
@@ -299,7 +364,8 @@ def write_back_approved(session, parse_id: int, edited_markdown: str | None = No
                     _log.info("  WOD '%s': exists=%s", wod_name, wod_name.lower() in existing_wods if wod_name else "empty")
                     if wod_name and wod_name.lower() not in existing_wods:
                         try:
-                            client.create_wod(name=wod_name, regime=regime, score_type=score_type)
+                            wod_desc = description if isinstance(wod, dict) else ""
+                            client.create_wod(name=wod_name, regime=regime, score_type=score_type, description=wod_desc)
                             _log.info("Created WOD '%s' on Actalog", wod_name)
                         except httpx.HTTPStatusError as exc:
                             # "already exists" is success — dedup check may miss due to pagination
