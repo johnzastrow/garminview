@@ -11,7 +11,7 @@ export const useDateRangeStore = defineStore("dateRange", () => {
     preset.value = p
     endDate.value = dayjs().format("YYYY-MM-DD")
     const days: Record<string, number> = { "7d": 7, "30d": 30, "90d": 90, "1y": 365 }
-    if (p !== "custom") startDate.value = dayjs().subtract(days[p], "day").format("YYYY-MM-DD")
+    if (p !== "custom") startDate.value = dayjs().subtract(days[p]!, "day").format("YYYY-MM-DD")
   }
 
   return { startDate, endDate, preset, setPreset }

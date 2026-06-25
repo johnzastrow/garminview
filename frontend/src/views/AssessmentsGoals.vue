@@ -20,11 +20,11 @@
       <section>
         <h2 class="section-title">Health Assessments</h2>
         <p class="section-desc">AI-generated health insights computed by the analysis engine after each sync. Assessments are categorized by domain (sleep, cardiovascular, training, body composition) and severity. Review flagged items to guide training adjustments.</p>
-        <div v-if="assessments.length === 0" class="empty-card">
+        <div v-if="!assessments?.length" class="empty-card">
           <p>No assessments found. Run a sync to generate AI health insights.</p>
         </div>
         <div v-else class="assessment-grid">
-          <div v-for="a in assessments" :key="a.id" class="assessment-card" :class="a.severity">
+          <div v-for="a in assessments ?? []" :key="a.id" class="assessment-card" :class="a.severity">
             <div class="card-top">
               <span class="badge" :class="a.severity">{{ a.severity }}</span>
               <span class="category">{{ fmt(a.category) }}</span>

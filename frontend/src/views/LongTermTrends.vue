@@ -141,7 +141,7 @@ function rolling(pts: [string, number | null][], w = 30): [string, number | null
     const slice = pts.slice(Math.max(0, i - w + 1), i + 1)
     const valid = slice.filter(([, v]) => v !== null) as [string, number][]
     const avg = valid.length ? valid.reduce((s, [, v]) => s + v, 0) / valid.length : null
-    return [pts[i][0], avg !== null ? +avg.toFixed(1) : null]
+    return [_[0], avg !== null ? +avg.toFixed(1) : null]
   })
 }
 
