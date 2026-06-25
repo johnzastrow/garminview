@@ -171,7 +171,7 @@ function nextPending(afterId: number) {
   const idx = items.value.findIndex(i => i.id === afterId)
   const remaining = items.value.filter((i, j) => j > idx && i.parse_status === "pending")
   if (remaining.length > 0) {
-    selectItem(remaining[0])
+    selectItem(remaining[0]!)
   } else {
     // Wrap around to first pending
     const first = items.value.find(i => i.parse_status === "pending")

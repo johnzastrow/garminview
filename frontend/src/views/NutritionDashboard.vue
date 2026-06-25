@@ -10,7 +10,7 @@
     <div v-if="loading" class="loading"><div class="spinner"></div><span>Loading data…</span></div>
     <div v-else-if="error" class="error-msg">{{ error }}</div>
 
-    <template v-else-if="nutrition.length">
+    <template v-else-if="nutrition?.length">
       <div class="stat-grid">
         <MetricCard label="Calories In" :value="latest?.calories_in" unit="kcal" :spark-data="spark('calories_in')" color="#3B82F6" />
         <MetricCard label="Protein" :value="latest?.protein_g ? Math.round(latest.protein_g) : null" unit="g" :spark-data="spark('protein_g')" color="#10B981" />
@@ -35,8 +35,8 @@
           <h2 class="chart-title">Macros (Protein / Carbs / Fat)</h2>
           <p class="chart-desc">Daily breakdown of calories from protein, carbohydrates, and fat. Protein (4 kcal/g) is critical for muscle repair and satiety; target 0.7–1.0 g/lb body weight for athletes. Carbohydrates fuel high-intensity exercise; fat supports hormonal health.</p>
           <StackedBarChart
-            v-if="nutrition.length"
-            :categories="nutrition.map(d => d.date)"
+            v-if="nutrition?.length"
+            :categories="(nutrition ?? []).map(d => d.date)"
             :series="macroSeries"
             y-axis-label="g"
           />

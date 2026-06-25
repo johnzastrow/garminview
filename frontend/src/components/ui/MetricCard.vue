@@ -111,8 +111,8 @@ const areaPath = computed(() => {
     .filter((p): p is [number, number] => p !== null)
   if (!pts.length) return ''
   const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')
-  const last = pts[pts.length - 1]
-  const first = pts[0]
+  const last = pts[pts.length - 1]!
+  const first = pts[0]!
   return `${line} L${last[0].toFixed(1)},32 L${first[0].toFixed(1)},32 Z`
 })
 </script>
