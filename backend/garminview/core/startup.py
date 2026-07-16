@@ -105,6 +105,28 @@ async def _garminview_sync_job():
     await _run_sync()
 
 
+async def _startup_catchup():
+    """Recover from downtime: if the container was down through one or more scheduled
+    runs, its cron fires are lost (in-memory jobstore), so on startup we check whether
+    garminview data is stale and, if so, run one catch-up sync. run_incremental() then
+    heals a gap of any size (it ingests from the last-stored date forward), so missed
+    syncs never leave a permanent hole."""
+    from datetime import date, timedelta
+    from sqlalchemy import select, func
+    from garminview.models.health import DailySummary
+    try:
+        with _session_factory() as session:
+            last = session.execute(select(func.max(DailySummary.date))).scalar()
+    except Exception as exc:  # never block startup on this
+        _log.warning("Startup catch-up: could not read last date: %s", exc)
+        return
+    if last is None or last < date.today() - timedelta(days=2):
+        _log.info("Startup catch-up: data stale (last=%s) — running catch-up sync", last)
+        await _garminview_sync_job()
+    else:
+        _log.info("Startup catch-up: data current (last=%s) — no catch-up needed", last)
+
+
 def _job_id(source: str, schedule_id: int) -> str:
     return f"sync_{source}_{schedule_id}"
 
@@ -132,7 +154,10 @@ def _register_job(row) -> None:
                    row.cron_expression, row.id, exc)
         return
 
-    _scheduler.add_job(fn, trigger, id=job_id, replace_existing=True)
+    # misfire_grace_time: still run a job that fired late (e.g. host was busy at cron time);
+    # coalesce: collapse multiple missed fires into a single run instead of a burst.
+    _scheduler.add_job(fn, trigger, id=job_id, replace_existing=True,
+                       misfire_grace_time=3600, coalesce=True)
     _log.info("Registered job %s cron=%s", job_id, row.cron_expression)
 
 
@@ -194,6 +219,15 @@ def start_scheduler(session_factory) -> None:
 
     _scheduler.start()
     _log.info("APScheduler started")
+
+    # Startup catch-up: if the container was down through scheduled runs, sync once now so
+    # gaps don't persist until the next cron fire. Delayed a little so the app is fully up.
+    from datetime import timedelta
+    _scheduler.add_job(
+        _startup_catchup, "date",
+        run_date=datetime.now() + timedelta(seconds=20),
+        id="startup_catchup", replace_existing=True,
+    )
 
     # Backfill missing daily HR zones for last 90 days
     try:
