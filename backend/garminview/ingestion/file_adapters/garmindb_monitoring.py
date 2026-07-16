@@ -19,9 +19,17 @@ def _time_str_to_seconds(t: str | None) -> int | None:
         return None
 
 
-def _parse_ts(ts: str) -> datetime:
-    """Parse GarminDB timestamp '2025-08-18 00:01:00.000000' to datetime."""
-    return datetime.fromisoformat(ts[:19])
+def _parse_ts(ts: str | None) -> datetime | None:
+    """Parse GarminDB timestamp '2025-08-18 00:01:00.000000' to datetime, or None if
+    empty/malformed. Returning None (rather than raising) lets each fetch() skip a single
+    bad row instead of aborting the whole monitoring stream — matching the guard the
+    stress and sleep_events adapters already have."""
+    if not ts:
+        return None
+    try:
+        return datetime.fromisoformat(ts[:19])
+    except ValueError:
+        return None
 
 
 class GarminDBRespirationAdapter(BaseAdapter):
@@ -51,8 +59,11 @@ class GarminDBRespirationAdapter(BaseAdapter):
                 (str(start_date), str(end_date) + " 23:59:59"),
             )
             for row in cursor:
+                ts = _parse_ts(row[0])
+                if ts is None:
+                    continue
                 yield {
-                    "timestamp": _parse_ts(row[0]),
+                    "timestamp": ts,
                     "rr": row[1],
                 }
         finally:
@@ -86,8 +97,11 @@ class GarminDBPulseOxAdapter(BaseAdapter):
                 (str(start_date), str(end_date) + " 23:59:59"),
             )
             for row in cursor:
+                ts = _parse_ts(row[0])
+                if ts is None:
+                    continue
                 yield {
-                    "timestamp": _parse_ts(row[0]),
+                    "timestamp": ts,
                     "spo2": row[1],
                 }
         finally:
@@ -121,8 +135,11 @@ class GarminDBClimbAdapter(BaseAdapter):
                 (str(start_date), str(end_date) + " 23:59:59"),
             )
             for row in cursor:
+                ts = _parse_ts(row[0])
+                if ts is None:
+                    continue
                 yield {
-                    "timestamp": _parse_ts(row[0]),
+                    "timestamp": ts,
                     "ascent_m": row[1],
                     "descent_m": row[2],
                     "cum_ascent_m": row[3],
@@ -159,8 +176,11 @@ class GarminDBIntensityAdapter(BaseAdapter):
                 (str(start_date), str(end_date) + " 23:59:59"),
             )
             for row in cursor:
+                ts = _parse_ts(row[0])
+                if ts is None:
+                    continue
                 yield {
-                    "timestamp": _parse_ts(row[0]),
+                    "timestamp": ts,
                     "moderate_time_s": _time_str_to_seconds(row[1]),
                     "vigorous_time_s": _time_str_to_seconds(row[2]),
                 }
@@ -196,8 +216,11 @@ class GarminDBStepsAdapter(BaseAdapter):
                 (str(start_date), str(end_date) + " 23:59:59"),
             )
             for row in cursor:
+                ts = _parse_ts(row[0])
+                if ts is None:
+                    continue
                 yield {
-                    "timestamp": _parse_ts(row[0]),
+                    "timestamp": ts,
                     "steps": row[1],
                     "activity_type": row[2],
                 }
