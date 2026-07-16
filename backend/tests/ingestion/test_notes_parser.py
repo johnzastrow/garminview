@@ -1,11 +1,8 @@
 import json
-import pytest
 from unittest.mock import MagicMock, patch
-from datetime import datetime
 
 from garminview.ingestion.notes_parser import NotesParser, ParsedNoteSchema, seed_default_config
 from garminview.models.actalog import ActalogWorkout, ActalogNoteParse
-from garminview.models.config import AppConfig
 
 
 def _make_session(workout_notes: str = "", config: dict | None = None):
@@ -145,3 +142,60 @@ def test_seed_default_config_skips_existing_keys():
     session.get.return_value = existing  # all keys already present
     seed_default_config(session)
     session.add.assert_not_called()
+
+
+def test_call_ollama_uses_constrained_decoding():
+    """_call_ollama must send the ParsedNoteSchema as Ollama's `format` so the
+    reply is grammar-constrained (no dropped fields / prose / invalid JSON)."""
+    session, _ = _make_session("x")
+    parser = NotesParser(session)
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"response": "{}", "prompt_eval_count": 5,
+                    "eval_count": 3, "eval_duration": 1_000_000_000}
+
+    def _fake_post(url, json=None, timeout=None):
+        captured["json"] = json
+        return _Resp()
+
+    with patch("garminview.ingestion.notes_parser.httpx.post", side_effect=_fake_post):
+        parser._call_ollama("http://x:11434", "qwen2.5:7b", "sys prompt", "note text")
+
+    assert captured["json"]["format"] == ParsedNoteSchema.model_json_schema()
+    assert captured["json"]["model"] == "qwen2.5:7b"
+
+
+def test_parse_pending_drains_unstaged_not_just_first_n(session):
+    """Regression: the unstaged filter must be applied before the limit. With the
+    limit applied first, an already-staged head of the table would starve the
+    backlog and parse 0 new workouts."""
+    note = "Did Fran: 21-15-9 thrusters and pull-ups. Felt great."
+    for i in (1, 2, 3):
+        session.add(ActalogWorkout(id=i, workout_name=f"W{i}", notes=note))
+    for i in (1, 2):  # first two already staged
+        session.add(ActalogNoteParse(workout_id=i, parse_status="sent",
+                                     content_class="WORKOUT"))
+    session.commit()
+
+    parser = NotesParser(session)
+    called = []
+
+    def _stub(workout_id, force=False):
+        called.append(workout_id)
+        rec = ActalogNoteParse(workout_id=workout_id, parse_status="pending",
+                               content_class="WORKOUT")
+        session.add(rec)
+        return rec
+
+    with patch.object(parser, "parse_workout", side_effect=_stub):
+        results = parser.parse_pending(limit=2)
+
+    # Only the unstaged workout (3) is parsed; the pre-fix code would return [].
+    assert called == [3]
+    assert len(results) == 1
+    assert results[0].workout_id == 3
