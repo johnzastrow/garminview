@@ -1,0 +1,21 @@
+{
+  "startTime": "2024-01-16T00:00:00.000",
+  "name": "Interval Session",
+  "description": "4x800m",
+  "done": false,
+  "programRef": 42,
+  "nonUserEditable": false,
+  "exercises": [
+    {
+      "sport": "RUNNING",
+      "phases": [
+        {"index": 0, "name": "Warmup", "changeType": "MANUAL",
+         "goal": {"type": "DURATION", "duration": "PT10M"},
+         "intensity": {"type": "HR_ZONE", "upperZone": 2, "lowerZone": 1}},
+        {"index": 1, "name": "Interval", "changeType": "MANUAL",
+         "goal": {"type": "DISTANCE", "duration": "PT4M"},
+         "intensity": {"type": "HR_ZONE", "upperZone": 4, "lowerZone": 3}}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "created": "2024-01-15T08:00:00.000Z",
+  "startTime": "2024-01-15T08:05:00.000Z",
+  "fitnessTestResult": {
+    "ownIndex": 52.0,
+    "averageHeartRate": 60,
+    "fitnessClass": "GOOD",
+    "timezoneOffsetMinutes": -300,
+    "physicalInformation": {"weight": 75.0, "vo2Max": 52.0}
+  }
+}

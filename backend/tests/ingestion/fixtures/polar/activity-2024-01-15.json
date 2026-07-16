@@ -1,0 +1,15 @@
+{
+  "date": "2024-01-15",
+  "exportVersion": "1.0",
+  "samples": {
+    "mets": [{"value": 1.2}, {"value": 2.4}],
+    "steps": [{"value": 100}, {"value": 200}],
+    "metSources": ["Wrist", "Chest"]
+  },
+  "physicalInformation": {
+    "sex": "MALE",
+    "birthday": "1990-05-05",
+    "height, cm": 180.0,
+    "weight, kg": 75.0
+  }
+}
