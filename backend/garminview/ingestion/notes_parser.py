@@ -405,24 +405,30 @@ class NotesParser:
         )
 
     def parse_pending(self, limit: int = 50) -> list[ActalogNoteParse]:
-        """Parse all workouts whose notes have not yet been staged."""
-        already_staged = {
-            row.workout_id
-            for row in self._session.query(ActalogNoteParse.workout_id).all()
-        }
+        """Parse up to ``limit`` workouts whose notes have not yet been staged.
+
+        The unstaged filter is applied in SQL *before* the limit. Applying the
+        limit first (the previous behaviour) kept re-selecting the same first N
+        workouts -- all already staged -- so the backlog never drained past that
+        window. NULL workout_ids are excluded from the staged subquery so SQL's
+        ``NOT IN (NULL)`` semantics don't wipe out the whole result set.
+        """
+        staged = (
+            self._session.query(ActalogNoteParse.workout_id)
+            .filter(ActalogNoteParse.workout_id.isnot(None))
+        )
         workouts = (
             self._session.query(ActalogWorkout)
             .filter(
                 ActalogWorkout.notes.isnot(None),
                 ActalogWorkout.notes != "",
+                ActalogWorkout.id.not_in(staged),
             )
             .limit(limit)
             .all()
         )
         results = []
         for w in workouts:
-            if w.id in already_staged:
-                continue
             try:
                 record = self.parse_workout(w.id)
                 self._session.commit()
@@ -456,6 +462,9 @@ class NotesParser:
                           llm_tokens_generated, llm_inference_s
         """
         t0 = time.monotonic()
+        # Hoisted so the TimeoutException handler can report it (previously it
+        # referenced an undefined `timeout`, raising NameError on a real timeout).
+        timeout = 600 if len(note) > 800 else 300
         try:
             resp = httpx.post(
                 f"{base_url}/api/generate",
@@ -464,9 +473,15 @@ class NotesParser:
                     "system": system_prompt,
                     "prompt": note,
                     "stream": False,
+                    # Grammar-constrained decoding: the reply is forced to match
+                    # ParsedNoteSchema, so the model can't drop fields, mislabel,
+                    # emit prose, or return invalid JSON. This is the single
+                    # biggest accuracy lever (see the model bake-off in
+                    # docs/planning/2026-07-16-notes-parser-model-bakeoff.md).
+                    "format": ParsedNoteSchema.model_json_schema(),
                     "options": {"temperature": 0.1},
                 },
-                timeout=600 if len(note) > 800 else 300,
+                timeout=timeout,
             )
             resp.raise_for_status()
             body = resp.json()
