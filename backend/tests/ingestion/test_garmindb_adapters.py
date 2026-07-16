@@ -421,6 +421,32 @@ class TestMonitoringAdapters:
         ox = list(GarminDBPulseOxAdapter(hdd).fetch(START, END))
         assert ox == [{"timestamp": datetime(2025, 6, 15, 3, 0, 0), "spo2": 97.0}]
 
+    def test_skips_malformed_timestamp(self, make_garmindb):
+        # Regression: a row whose timestamp passes the SQL string range filter but is not a
+        # real datetime (invalid hour) must be skipped, not raise out of fetch() and abort the
+        # entire monitoring stream. Previously _parse_ts() raised straight through.
+        def seed(conn):
+            conn.executescript(
+                "CREATE TABLE monitoring (timestamp TEXT, steps INTEGER, activity_type TEXT);"
+            )
+            conn.executemany(
+                "INSERT INTO monitoring VALUES (?,?,?)",
+                [
+                    ("2025-06-15 25:00:00.000000", 7, "walking"),  # invalid hour -> skipped
+                    ("2025-06-15 00:05:00.000000", 8, "walking"),  # valid -> kept
+                ],
+            )
+
+        hdd = make_garmindb("garmin_monitoring.db", seed)
+        rows = list(GarminDBStepsAdapter(hdd).fetch(START, END))
+        assert rows == [
+            {
+                "timestamp": datetime(2025, 6, 15, 0, 5, 0),
+                "steps": 8,
+                "activity_type": "walking",
+            }
+        ]
+
     def test_missing_db(self, tmp_path):
         for cls in (
             GarminDBStepsAdapter,
