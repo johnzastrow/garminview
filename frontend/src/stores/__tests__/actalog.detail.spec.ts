@@ -51,7 +51,7 @@ describe('actalog store — detail fetchers', () => {
   // MatchStatus and calls store.fetchMatchCandidates / store.setWorkoutMatch, none of which
   // this store exposes. Documented here rather than papered over. See the task report.
   it('does NOT yet expose the Garmin-match API expected by GarminMatchPanel.vue', () => {
-    const s = useActalogStore() as Record<string, unknown>
+    const s = useActalogStore() as unknown as Record<string, unknown>
     expect(s.fetchMatchCandidates).toBeUndefined()
     expect(s.setWorkoutMatch).toBeUndefined()
   })
