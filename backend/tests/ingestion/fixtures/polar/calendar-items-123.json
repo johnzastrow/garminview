@@ -1,0 +1,17 @@
+{
+  "physicalInformations": [
+    {
+      "dateTime": "2024-01-15T00:00:00.000",
+      "height, cm": 165.0,
+      "weight, kg": 60.0,
+      "vo2Max": 48.0,
+      "maximumHeartRate": 190,
+      "restingHeartRate": 55,
+      "aerobicThreshold": 140,
+      "anaerobicThreshold": 170,
+      "functionalThresholdPower": 220,
+      "trainingBackground": "FREQUENT",
+      "typicalDay": "MOSTLY_SITTING"
+    }
+  ]
+}

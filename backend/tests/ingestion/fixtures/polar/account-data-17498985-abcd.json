@@ -1,0 +1,17 @@
+{
+  "username": "runner1",
+  "firstName": "Jane",
+  "lastName": "Doe",
+  "nickname": "JD",
+  "physicalInformation": {
+    "sex": "FEMALE",
+    "birthday": "1990-05-05",
+    "height, cm": 165.0,
+    "weight, kg": 60.0,
+    "vo2Max": 48.0,
+    "restingHeartRate": 55,
+    "sleepGoal": "PT8H"
+  },
+  "settings": {"timeZone": "America/New_York"},
+  "linkedApplications": ["Strava"]
+}
