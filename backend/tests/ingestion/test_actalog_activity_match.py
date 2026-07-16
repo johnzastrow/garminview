@@ -7,8 +7,6 @@ out-of-tolerance, ambiguous tie, and the unrankable cases).
 
 from datetime import datetime
 
-import pytest
-
 from garminview.ingestion.actalog_activity_match import (
     auto_match,
     list_candidates,
@@ -114,19 +112,68 @@ def test_auto_match_ignores_activities_without_elapsed(session):
 
 
 # ── resolve_activity ─────────────────────────────────────────────────
-# NOTE: resolve_activity reads workout.garmin_match_confirmed and
-# workout.garmin_activity_id, which are NOT columns on the current
-# ActalogWorkout model. Until those columns are added, the function raises
-# AttributeError on the first attribute access. This xfail documents the gap
-# and will flip to XPASS (alerting us) once the model gains those fields.
-@pytest.mark.xfail(
-    reason="ActalogWorkout lacks garmin_match_confirmed / garmin_activity_id columns",
-    raises=AttributeError,
-    strict=True,
-)
-def test_resolve_activity_gap(session):
+# The garmin_activity_id / garmin_match_confirmed columns now exist (migration
+# 0010 + the model), so resolve_activity fully exercises its branches.
+
+
+def test_resolve_activity_confirmed_link(session):
+    """Confirmed match with a linked id returns that activity, status 'linked'."""
     _activity(session, 1, datetime(2024, 1, 15, 7, 0), 1790)
     session.flush()
     workout = _workout(session, datetime(2024, 1, 15, 0, 0), 1800)
+    workout.garmin_activity_id = 1
+    workout.garmin_match_confirmed = True
+    session.flush()
+
+    activity, status = resolve_activity(session, workout)
+    assert status == "linked"
+    assert activity is not None
+    assert activity.activity_id == 1
+
+
+def test_resolve_activity_confirmed_none(session):
+    """Confirmed 'no activity' (id NULL) returns (None, 'none') and ignores
+    any otherwise-auto-matchable activity on the day."""
+    _activity(session, 1, datetime(2024, 1, 15, 7, 0), 1790)  # would auto-match
+    session.flush()
+    workout = _workout(session, datetime(2024, 1, 15, 0, 0), 1800)
+    workout.garmin_activity_id = None
+    workout.garmin_match_confirmed = True
+    session.flush()
+
+    activity, status = resolve_activity(session, workout)
+    assert activity is None
+    assert status == "none"
+
+
+def test_resolve_activity_auto(session):
+    """Unconfirmed clear winner resolves as 'auto' with that activity."""
+    _activity(session, 1, datetime(2024, 1, 15, 7, 0), 1790)
+    session.flush()
+    workout = _workout(session, datetime(2024, 1, 15, 0, 0), 1800)
+
     activity, status = resolve_activity(session, workout)
     assert status == "auto"
+    assert activity is not None
+    assert activity.activity_id == 1
+
+
+def test_resolve_activity_ambiguous(session):
+    """Unconfirmed with candidates but no clear winner resolves as 'ambiguous'."""
+    _activity(session, 1, datetime(2024, 1, 15, 7, 0), 1750)   # 50s under
+    _activity(session, 2, datetime(2024, 1, 15, 18, 0), 1850)  # 50s over
+    session.flush()
+    workout = _workout(session, datetime(2024, 1, 15, 0, 0), 1800)
+
+    activity, status = resolve_activity(session, workout)
+    assert activity is None
+    assert status == "ambiguous"
+
+
+def test_resolve_activity_unavailable(session):
+    """Unconfirmed with no activities on the date resolves as 'unavailable'."""
+    workout = _workout(session, datetime(2024, 6, 1, 0, 0), 1800)
+
+    activity, status = resolve_activity(session, workout)
+    assert activity is None
+    assert status == "unavailable"

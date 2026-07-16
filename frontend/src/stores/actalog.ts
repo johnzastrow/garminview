@@ -72,6 +72,26 @@ export interface CrossRefItem {
   stress_avg: number | null
 }
 
+export type MatchStatus = "linked" | "none" | "auto" | "ambiguous" | "unavailable"
+
+export interface GarminActivityMatch {
+  activity_id: number
+  start_time: string | null
+  sport: string | null
+  sub_sport: string | null
+  elapsed_time_s: number | null
+  distance_m: number | null
+  avg_hr: number | null
+  max_hr: number | null
+  calories: number | null
+}
+
+export interface MatchCandidatesResponse {
+  workout_date: string | null
+  current: { status: MatchStatus; activity: GarminActivityMatch | null }
+  candidates: GarminActivityMatch[]
+}
+
 export interface ActalogConfig {
   url: string | null
   email: string | null
@@ -147,6 +167,21 @@ export const useActalogStore = defineStore("actalog", () => {
     return data
   }
 
+  async function fetchMatchCandidates(workoutId: number): Promise<MatchCandidatesResponse> {
+    const { data } = await api.get(`/actalog/workouts/${workoutId}/match-candidates`)
+    return data
+  }
+
+  async function setWorkoutMatch(
+    workoutId: number,
+    activityId: number | null,
+  ): Promise<MatchCandidatesResponse> {
+    const { data } = await api.post(`/actalog/workouts/${workoutId}/match`, {
+      activity_id: activityId,
+    })
+    return data
+  }
+
   const workoutsByDate = computed(() => {
     const map = new Map<string, WorkoutListItem[]>()
     for (const w of workouts.value) {
@@ -164,5 +199,6 @@ export const useActalogStore = defineStore("actalog", () => {
     loading, error, workoutsByDate,
     fetchWorkouts, fetchWorkoutDetail, fetchSessionVitals,
     fetchPRs, fetchCrossRef, fetchConfig, saveConfig, triggerSync,
+    fetchMatchCandidates, setWorkoutMatch,
   }
 })

@@ -10,6 +10,7 @@ import { useDateRangeStore } from "@/stores/dateRange"
 import DateRangePicker from "@/components/ui/DateRangePicker.vue"
 import DualAxisChart from "@/components/charts/DualAxisChart.vue"
 import ReviewQueue from "@/components/actalog/ReviewQueue.vue"
+import GarminMatchPanel from "@/components/actalog/GarminMatchPanel.vue"
 import { api } from "@/api/client"
 import { marked } from "marked"
 import { useRoute } from "vue-router"
@@ -355,6 +356,15 @@ async function selectDay(dateStr: string) {
   const first = dayWorkouts?.[0]
   if (first) {
     await store.fetchSessionVitals(first.id)
+  }
+}
+
+// After the user (re)matches a Garmin activity, refetch session-vitals so the
+// HR window re-anchors to the newly matched activity's real start time.
+async function onMatchChanged() {
+  const id = store.sessionVitals?.workout.id
+  if (id != null) {
+    await store.fetchSessionVitals(id)
   }
 }
 
@@ -776,6 +786,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
           <span>Type: {{ store.sessionVitals.workout.workout_type ?? "—" }}</span>
           <span>Duration: {{ fmtDuration(store.sessionVitals.workout.total_time_s) }}</span>
         </div>
+        <GarminMatchPanel :workout-id="store.sessionVitals.workout.id" @changed="onMatchChanged" />
         <div v-if="store.sessionVitals.workout.movements.length">
           <p class="section-label">Movements</p>
           <table class="inner-table">

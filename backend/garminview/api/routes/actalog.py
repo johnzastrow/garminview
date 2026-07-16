@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, date
+from datetime import datetime, date, time, timedelta
 from typing import Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
@@ -17,6 +17,10 @@ from garminview.api.schemas.actalog import (
     MovementItem,
     WodItem,
     SessionVitals,
+    MatchCandidatesResponse,
+    MatchCurrent,
+    MatchSetIn,
+    to_activity_match,
     MovementRef,
     MovementHistoryItem,
     PRItem,
@@ -43,6 +47,11 @@ from garminview.models.actalog import (
     ActalogPersonalRecord,
     ActalogNoteParse,
 )
+from garminview.ingestion.actalog_activity_match import (
+    list_candidates,
+    resolve_activity,
+)
+from garminview.models.activities import Activity
 from garminview.ingestion.notes_parser import (
     NotesParser,
     seed_default_config,
@@ -59,6 +68,11 @@ from garminview.models.health import Stress
 from garminview.models.sync import SyncLog
 
 _log = logging.getLogger(__name__)
+
+# Assumed time-of-day for a workout with no matched Garmin activity. Actalog
+# stores workout_date as date-only (midnight); noon is a better central
+# estimate than 00:00 for pulling the surrounding HR/stress window.
+ASSUMED_WORKOUT_TIME = time(12, 0, 0)
 
 router = APIRouter()
 admin_router = APIRouter()
@@ -251,10 +265,20 @@ def get_session_vitals(
         return SessionVitals(workout=detail, has_vitals=False)
 
     workout_day = workout.workout_date.date()
-    workout_start = workout.workout_date
-    # End time estimate: start + duration
-    from datetime import timedelta
-    workout_end = workout_start + timedelta(seconds=workout.total_time_s)
+
+    # Anchor the HR/stress window to the matched Garmin activity's real start
+    # time when one resolves (auto or confirmed) — this is the payoff: Actalog
+    # only records date-only, so without a match we'd be guessing the window.
+    activity, _match_status = resolve_activity(session, workout)
+    if activity is not None and activity.start_time is not None:
+        workout_start = activity.start_time
+        duration_s = activity.elapsed_time_s or workout.total_time_s
+        workout_end = workout_start + timedelta(seconds=duration_s)
+    else:
+        # No matched activity: assume the workout happened around noon rather
+        # than at midnight, then span its recorded duration.
+        workout_start = datetime.combine(workout_day, ASSUMED_WORKOUT_TIME)
+        workout_end = workout_start + timedelta(seconds=workout.total_time_s)
 
     # HR series from monitoring
     hr_rows = (
@@ -297,6 +321,71 @@ def get_session_vitals(
         body_battery=body_battery,
         stress=stress,
     )
+
+
+def _build_match_response(
+    session: Session, workout: ActalogWorkout,
+) -> MatchCandidatesResponse:
+    """Assemble the Garmin-match payload for a workout.
+
+    ``current`` comes from resolve_activity() (the activity we'd use for HR
+    plus its status); ``candidates`` is every activity on the workout's date.
+    """
+    activity, status = resolve_activity(session, workout)
+    current = MatchCurrent(
+        status=status,
+        activity=to_activity_match(activity) if activity is not None else None,
+    )
+    candidates = [to_activity_match(a) for a in list_candidates(session, workout)]
+    return MatchCandidatesResponse(
+        workout_date=workout.workout_date.isoformat() if workout.workout_date else None,
+        current=current,
+        candidates=candidates,
+    )
+
+
+@router.get("/workouts/{workout_id}/match-candidates", response_model=MatchCandidatesResponse)
+def get_match_candidates(
+    workout_id: int,
+    session: Annotated[Session, Depends(get_db)],
+):
+    """Current match state + all same-day Garmin activities for the workout."""
+    workout = session.get(ActalogWorkout, workout_id)
+    if workout is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+    return _build_match_response(session, workout)
+
+
+@router.post("/workouts/{workout_id}/match", response_model=MatchCandidatesResponse)
+def set_workout_match(
+    workout_id: int,
+    body: MatchSetIn,
+    session: Annotated[Session, Depends(get_db)],
+):
+    """Confirm a Garmin match (or explicitly confirm 'no activity').
+
+    Sets ``garmin_activity_id`` and marks ``garmin_match_confirmed`` True, then
+    returns the post-update match state (status "linked" for a real id, "none"
+    for null). 404 if the workout is unknown; 400 if a non-null activity_id has
+    no matching row in ``activities``.
+    """
+    workout = session.get(ActalogWorkout, workout_id)
+    if workout is None:
+        raise HTTPException(status_code=404, detail="Workout not found")
+
+    if body.activity_id is not None:
+        activity = session.get(Activity, body.activity_id)
+        if activity is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Activity {body.activity_id} not found",
+            )
+
+    workout.garmin_activity_id = body.activity_id
+    workout.garmin_match_confirmed = True
+    session.commit()
+    session.refresh(workout)
+    return _build_match_response(session, workout)
 
 
 @router.get("/movements", response_model=list[MovementRef])
