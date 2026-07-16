@@ -62,6 +62,60 @@ class SessionVitals(BaseModel):
     stress: list[dict] = []
 
 
+# ---------------------------------------------------------------------------
+# Garmin activity matching
+# ---------------------------------------------------------------------------
+
+# status values mirror garminview.ingestion.actalog_activity_match.resolve_activity
+MatchStatus = str  # "linked" | "none" | "auto" | "ambiguous" | "unavailable"
+
+
+class GarminActivityMatch(BaseModel):
+    """A candidate/current Garmin activity, flattened for the match UI."""
+    activity_id: int
+    start_time: str | None
+    sport: str | None
+    sub_sport: str | None
+    elapsed_time_s: int | None
+    distance_m: float | None
+    avg_hr: int | None
+    max_hr: int | None
+    calories: int | None
+
+
+class MatchCurrent(BaseModel):
+    status: MatchStatus
+    activity: GarminActivityMatch | None
+
+
+class MatchCandidatesResponse(BaseModel):
+    workout_date: str | None
+    current: MatchCurrent
+    candidates: list[GarminActivityMatch]
+
+
+class MatchSetIn(BaseModel):
+    activity_id: int | None = None
+
+
+def to_activity_match(activity) -> GarminActivityMatch:
+    """Map a garminview.models.activities.Activity ORM row to the flat schema.
+
+    ``start_time`` is serialised as an ISO-8601 string (or None).
+    """
+    return GarminActivityMatch(
+        activity_id=activity.activity_id,
+        start_time=activity.start_time.isoformat() if activity.start_time else None,
+        sport=activity.sport,
+        sub_sport=activity.sub_sport,
+        elapsed_time_s=activity.elapsed_time_s,
+        distance_m=activity.distance_m,
+        avg_hr=activity.avg_hr,
+        max_hr=activity.max_hr,
+        calories=activity.calories,
+    )
+
+
 class MovementRef(BaseModel):
     model_config = {"from_attributes": True}
     id: int

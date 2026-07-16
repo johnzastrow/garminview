@@ -1,6 +1,6 @@
 from datetime import datetime
 from sqlalchemy import (
-    Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+    BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, false
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from garminview.core.database import Base
@@ -17,6 +17,14 @@ class ActalogWorkout(Base):
     formatted_notes: Mapped[str | None] = mapped_column(Text)
     performance_notes: Mapped[str | None] = mapped_column(Text)
     synced_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Garmin activity link (migration 0010). garmin_activity_id points at
+    # activities.activity_id (BigInteger). garmin_match_confirmed distinguishes
+    # "user reviewed and chose" (True) from "never reviewed, auto-match live"
+    # (False); True + NULL id means the user confirmed no Garmin activity.
+    garmin_activity_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    garmin_match_confirmed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
 
 
 class ActalogMovement(Base):
