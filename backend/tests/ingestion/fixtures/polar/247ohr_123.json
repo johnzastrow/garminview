@@ -1,0 +1,10 @@
+{
+  "deviceDays": [
+    {
+      "date": "2024-01-15",
+      "deviceId": "DEV123",
+      "userId": 17498985,
+      "samples": [{"secondsFromMidnight": 0, "hr": 60}, {"secondsFromMidnight": 60, "hr": 62}]
+    }
+  ]
+}

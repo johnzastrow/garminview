@@ -1,0 +1,39 @@
+[
+  {
+    "night": "2024-01-15",
+    "evaluation": {
+      "sleepType": "NIGHT",
+      "sleepSpan": "PT8H",
+      "asleepDuration": "PT7H30M",
+      "age": 33,
+      "analysis": {
+        "efficiencyPercent": 92.0,
+        "continuityIndex": 3.1,
+        "continuityClass": 2,
+        "feedback": 1
+      },
+      "interruptions": {
+        "totalDuration": "PT30M",
+        "totalCount": 3,
+        "shortCount": 2,
+        "longCount": 1
+      }
+    },
+    "sleepResult": {
+      "hypnogram": {
+        "sleepStart": "2024-01-14T23:00:00.000",
+        "sleepEnd": "2024-01-15T07:00:00.000",
+        "sleepGoal": "PT8H",
+        "rating": "GOOD",
+        "deviceId": "DEV123",
+        "batteryRanOut": false,
+        "sleepStateChanges": [
+          {"offsetFromStart": "PT0S", "state": "NONREM2"},
+          {"offsetFromStart": "PT1H", "state": "NONREM3"},
+          {"offsetFromStart": "PT3H", "state": "REM"},
+          {"offsetFromStart": "PT4H", "state": "WAKE"}
+        ]
+      }
+    }
+  }
+]

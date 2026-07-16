@@ -1,0 +1,59 @@
+{
+  "identifier": {"id": 332906208},
+  "created": "2024-01-15T08:00:00.000",
+  "modified": "2024-01-15T09:00:00.000",
+  "startTime": "2024-01-15T08:00:00.000",
+  "stopTime": "2024-01-15T08:45:00.000",
+  "name": "Morning Run",
+  "sport": {"id": 1},
+  "deviceId": "DEV123",
+  "product": {"modelName": "Polar Vantage V2"},
+  "application": {"name": "Polar Flow"},
+  "latitude": 40.5,
+  "longitude": -80.1,
+  "durationMillis": 2700000,
+  "distanceMeters": 8000.0,
+  "calories": 500,
+  "trainingLoad": 120.5,
+  "recoveryTimeMillis": "36000000",
+  "timezoneOffsetMinutes": -300,
+  "physicalInformation": {
+    "maximumHeartRate": 190,
+    "restingHeartRate": 50,
+    "aerobicThreshold": 140,
+    "anaerobicThreshold": 170,
+    "vo2Max": 52.0,
+    "weightKg": 75.0
+  },
+  "exercises": [
+    {
+      "identifier": {"id": 987654321},
+      "startTime": "2024-01-15T08:00:00.000",
+      "stopTime": "2024-01-15T08:45:00.000",
+      "durationMillis": 2700000,
+      "distanceMeters": 8000.0,
+      "calories": 500,
+      "trainingLoad": 120.5,
+      "recoveryTimeMillis": "36000000",
+      "sport": {"id": 1},
+      "latitude": 40.5,
+      "longitude": -80.1,
+      "timezoneOffsetMinutes": -300,
+      "statistics": {"statistics": [
+        {"type": "HEART_RATE", "avg": 155.0, "max": 182.0},
+        {"type": "SPEED", "avg": 3.0, "max": 4.5}
+      ]},
+      "zones": [
+        {"type": "HEART_RATE", "zones": [
+          {"lowerLimit": 100, "higherLimit": 120},
+          {"lowerLimit": 120, "higherLimit": 140}
+        ]}
+      ],
+      "laps": [{"lapIndex": 0, "duration": "PT5M"}],
+      "samples": {"samples": [
+        {"type": "HEART_RATE", "intervalMillis": 1000, "values": [150, 155, null]}
+      ]},
+      "routes": {"route": {"startTime": "2024-01-15T08:00:00.000", "wayPoints": [{"lat": 40.5, "lng": -80.1}]}}
+    }
+  ]
+}
