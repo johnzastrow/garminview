@@ -264,3 +264,13 @@ def test_movement_schema_has_cardio_fields():
     assert {"distance_m", "calories", "duration_s"} <= props
     m = MovementSchema.model_validate({"movement": "Run", "distance_m": 800})
     assert m.distance_m == 800 and m.reps is None
+
+
+def test_mixed_without_notes_demoted_to_workout():
+    """MIXED with empty performance_notes is deterministically demoted to WORKOUT."""
+    from garminview.ingestion.notes_parser import ParsedNoteSchema as P
+    assert P(content_class="MIXED", performance_notes=None).content_class == "WORKOUT"
+    assert P(content_class="MIXED", performance_notes="   ").content_class == "WORKOUT"
+    # real commentary keeps MIXED; other classes untouched
+    assert P(content_class="MIXED", performance_notes="felt strong").content_class == "MIXED"
+    assert P(content_class="WORKOUT").content_class == "WORKOUT"
