@@ -491,7 +491,7 @@ class NotesParser:
                     "temperature": 0.1,
                     # Cap generation. Also a guard: a reasoning model that ignores
                     # enable_thinking can't burn unbounded tokens and hang.
-                    "max_tokens": 2048,
+                    "max_tokens": 8192,
                     # qwen3.5 (and other hybrid-reasoning models) emit a <think>
                     # channel that is NOT grammar-constrained, so response_format
                     # won't stop it — they burn 10k+ tokens and effectively hang.

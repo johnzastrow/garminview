@@ -230,7 +230,7 @@ def test_call_openai_uses_schema_and_disables_thinking():
     body = captured["json"]
     assert body["model"] == "qwen3.5-35b-a3b"
     assert body["chat_template_kwargs"] == {"enable_thinking": False}
-    assert body["max_tokens"] == 2048
+    assert body["max_tokens"] == 8192
     assert body["response_format"]["type"] == "json_schema"
     assert body["response_format"]["json_schema"]["schema"] == ParsedNoteSchema.model_json_schema()
     assert [m["role"] for m in body["messages"]] == ["system", "user"]
