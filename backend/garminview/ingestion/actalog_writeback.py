@@ -95,6 +95,13 @@ def _build_wod_description(wod: dict) -> str:
                 parts.append(f"{sets}x{reps}")
             elif reps:
                 parts.append(str(reps))
+            elif m.get("distance_m"):
+                parts.append(f"{int(m['distance_m'])}m")
+            elif m.get("calories"):
+                parts.append(f"{m['calories']} cal")
+            elif m.get("duration_s"):
+                _s = int(m["duration_s"])
+                parts.append(f"{_s // 60}:{_s % 60:02d}")
             parts.append(name)
             if weight:
                 parts.append(f"({weight}#)")

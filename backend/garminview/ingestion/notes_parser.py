@@ -280,9 +280,26 @@ _WORKOUT_KEYWORDS = re.compile(
 
 class MovementSchema(BaseModel):
     movement: str
-    reps: int | None = None
+    reps: int | None = Field(
+        default=None,
+        description="Number of REPETITIONS only. Never put distance, calories, "
+                    "load, or time here — those have their own fields.")
     sets: int | None = None
-    weight_lbs: float | None = None
+    weight_lbs: float | None = Field(
+        default=None, description="Load/weight in pounds. Convert kg->lb (x2.205).")
+    distance_m: float | None = Field(
+        default=None,
+        description="Distance in METERS for cardio (run/row/bike/ski/swim). Convert "
+                    "miles->m (x1609) and km->m (x1000). e.g. '800m run'->800, "
+                    "'1.3mi bike'->2092. This is NOT reps.")
+    calories: int | None = Field(
+        default=None,
+        description="Calories for calorie-based cardio, e.g. '14 cal bike'->14, "
+                    "'Row Calories'->reps of calories. This is NOT reps.")
+    duration_s: int | None = Field(
+        default=None,
+        description="Duration in SECONDS for a timed hold/effort, e.g. '1:00 plank'->60, "
+                    "':30 hollow hold'->30. This is NOT reps.")
     notes: str | None = None
 
 
