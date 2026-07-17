@@ -36,10 +36,16 @@ CONFIG_KEY_PROMPT = "parser.system_prompt"
 CONFIG_KEY_MODEL = "parser.ollama_model"
 CONFIG_KEY_URL = "parser.ollama_url"
 CONFIG_KEY_MIN_LENGTH = "parser.min_note_length"
+CONFIG_KEY_BACKEND = "parser.backend"
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5:7b"
 DEFAULT_MIN_LENGTH = 20  # notes shorter than this are auto-SKIPped
+# Which LLM API to speak. "ollama" -> Ollama /api/generate; "openai" -> any
+# OpenAI-compatible /v1/chat/completions server (llama.cpp, vLLM, ...). Both use
+# schema-constrained decoding. Backend + url + model are all runtime config, so
+# swapping servers/models as you test is a config change, no redeploy.
+DEFAULT_BACKEND = "ollama"
 
 DEFAULT_SYSTEM_PROMPT = """\
 You are a CrossFit/fitness workout parser. Given raw notes from a workout log, \
@@ -330,7 +336,8 @@ class NotesParser:
         self._load_config()
 
     def _load_config(self) -> None:
-        keys = [CONFIG_KEY_PROMPT, CONFIG_KEY_MODEL, CONFIG_KEY_URL, CONFIG_KEY_MIN_LENGTH]
+        keys = [CONFIG_KEY_PROMPT, CONFIG_KEY_MODEL, CONFIG_KEY_URL,
+                CONFIG_KEY_MIN_LENGTH, CONFIG_KEY_BACKEND]
         rows = self._session.query(AppConfig).filter(AppConfig.key.in_(keys)).all()
         self._cfg = {r.key: r.value for r in rows if r.value}
 
@@ -367,7 +374,7 @@ class NotesParser:
         ollama_url = self._get(CONFIG_KEY_URL, DEFAULT_OLLAMA_URL)
         system_prompt = self._get(CONFIG_KEY_PROMPT, DEFAULT_SYSTEM_PROMPT)
 
-        raw_json, error, timing = self._call_ollama(ollama_url, model, system_prompt, notes)
+        raw_json, error, timing = self._call_llm(ollama_url, model, system_prompt, notes)
         if error:
             return self._write_staging(workout, notes, "SKIP", None, None, error, model, timing)
 
@@ -384,7 +391,7 @@ class NotesParser:
         # Retry once with JSON emphasis if first attempt failed
         if error:
             retry_suffix = "\n\nIMPORTANT: Return ONLY a valid JSON object. No markdown, no text before or after. Ensure all commas and brackets are correct."
-            raw_json2, error2, timing2 = self._call_ollama(
+            raw_json2, error2, timing2 = self._call_llm(
                 ollama_url, model, system_prompt + retry_suffix, notes
             )
             if not error2:
@@ -452,6 +459,74 @@ class NotesParser:
         if not _WORKOUT_KEYWORDS.search(notes):
             return "SKIP", "no workout keywords detected"
         return "UNKNOWN", None
+
+    def _call_llm(
+        self, base_url: str, model: str, system_prompt: str, note: str,
+    ) -> tuple[str | None, str | None, dict]:
+        """Dispatch to the configured LLM backend. Same return contract for both."""
+        backend = self._get(CONFIG_KEY_BACKEND, DEFAULT_BACKEND).lower()
+        if backend == "openai":
+            return self._call_openai(base_url, model, system_prompt, note)
+        return self._call_ollama(base_url, model, system_prompt, note)
+
+    def _call_openai(
+        self, base_url: str, model: str, system_prompt: str, note: str,
+    ) -> tuple[str | None, str | None, dict]:
+        """Call an OpenAI-compatible /v1/chat/completions endpoint (llama.cpp,
+        vLLM, ...) with response_format=json_schema for constrained decoding.
+
+        Same return contract as _call_ollama: (raw_json_string, error, timing).
+        """
+        t0 = time.monotonic()
+        timeout = 600 if len(note) > 800 else 300
+        try:
+            resp = httpx.post(
+                f"{base_url}/v1/chat/completions",
+                json={
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": note},
+                    ],
+                    "temperature": 0.1,
+                    # Cap generation. Also a guard: a reasoning model that ignores
+                    # enable_thinking can't burn unbounded tokens and hang.
+                    "max_tokens": 2048,
+                    # qwen3.5 (and other hybrid-reasoning models) emit a <think>
+                    # channel that is NOT grammar-constrained, so response_format
+                    # won't stop it — they burn 10k+ tokens and effectively hang.
+                    # Disabling thinking is required for them and harmless (ignored)
+                    # for non-reasoning models like qwen2.5-coder. See the model
+                    # benchmark: docs/planning/2026-07-16-notes-parser-model-bakeoff.md.
+                    "chat_template_kwargs": {"enable_thinking": False},
+                    # OpenAI-style structured outputs — forces the reply to match
+                    # ParsedNoteSchema (the constrained-decoding equivalent of the
+                    # Ollama `format` param used in _call_ollama).
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "parsed_note",
+                            "schema": ParsedNoteSchema.model_json_schema(),
+                            "strict": True,
+                        },
+                    },
+                },
+                timeout=timeout,
+            )
+            resp.raise_for_status()
+            body = resp.json()
+            usage = body.get("usage") or {}
+            timing = {
+                "parse_duration_s": round(time.monotonic() - t0, 3),
+                "llm_tokens_prompt": usage.get("prompt_tokens"),
+                "llm_tokens_generated": usage.get("completion_tokens"),
+                "llm_inference_s": None,
+            }
+            return body["choices"][0]["message"]["content"], None, timing
+        except httpx.TimeoutException:
+            return None, f"LLM request timed out (>{timeout}s)", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+        except Exception as exc:
+            return None, f"OpenAI-compatible LLM error: {exc}", {"parse_duration_s": round(time.monotonic() - t0, 3)}
 
     def _call_ollama(
         self, base_url: str, model: str, system_prompt: str, note: str,
@@ -591,6 +666,7 @@ def seed_default_config(session: Session, update_prompt: bool = False) -> None:
         CONFIG_KEY_MODEL: DEFAULT_MODEL,
         CONFIG_KEY_URL: DEFAULT_OLLAMA_URL,
         CONFIG_KEY_MIN_LENGTH: str(DEFAULT_MIN_LENGTH),
+        CONFIG_KEY_BACKEND: DEFAULT_BACKEND,
     }
     for key, value in defaults.items():
         row = session.get(AppConfig, key)
