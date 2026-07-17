@@ -19,7 +19,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 import httpx
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy.orm import Session
 
 from garminview.core.logging import get_logger
@@ -338,6 +338,16 @@ class ParsedNoteSchema(BaseModel):
     performance_notes: str | None = None
     wods: list[WodSchema] = Field(default_factory=list)
     formatted_markdown: str | None = None
+
+    @model_validator(mode="after")
+    def _demote_empty_mixed(self):
+        """MIXED requires actual personal commentary. The model sometimes labels a
+        multi-part workout MIXED with no performance_notes; deterministically demote
+        those to WORKOUT so the class stays trustworthy (the prompt asks for this, but
+        the LLM doesn't always comply). Applies to every parse, past and future."""
+        if self.content_class == "MIXED" and not (self.performance_notes or "").strip():
+            self.content_class = "WORKOUT"
+        return self
 
 
 # ---------------------------------------------------------------------------
