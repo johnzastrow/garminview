@@ -594,10 +594,11 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
       <div v-if="store.loading" class="muted">Loading…</div>
       <div v-else-if="!store.workouts.length" class="muted">No workouts found. Run a sync from Admin → Actalog.</div>
       <table v-else class="data-table">
-        <thead><tr><th>Date</th><th>Name</th><th>Type</th><th>Duration</th><th></th></tr></thead>
+        <thead><tr><th>WID</th><th>Date</th><th>Name</th><th>Type</th><th>Duration</th><th></th></tr></thead>
         <tbody>
           <template v-for="w in store.workouts" :key="w.id">
             <tr class="workout-row">
+              <td class="wid-cell">{{ w.id }}</td>
               <td>{{ w.workout_date?.slice(0, 10) ?? "—" }}</td>
               <td>{{ w.workout_name ?? "—" }}</td>
               <td><span class="type-badge" :style="{ background: typeColor(w.workout_type) + '20', color: typeColor(w.workout_type) }">{{ w.workout_type ?? "—" }}</span></td>
@@ -605,7 +606,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
               <td><button class="link-btn" @click="toggleExpand(w.id)">{{ expandedWorkout === w.id ? 'Collapse' : 'Expand' }}</button></td>
             </tr>
             <tr v-if="expandedWorkout === w.id && store.selectedWorkout?.id === w.id" class="expand-row">
-              <td colspan="5">
+              <td colspan="6">
                 <div class="expand-body">
                   <div v-if="store.selectedWorkout.movements.length">
                     <p class="section-label">Movements</p>
@@ -828,13 +829,14 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
       <table v-if="!qaLoading && qaRecords.length" class="data-table qa-list">
         <thead>
           <tr>
-            <th>Date</th><th>Workout</th><th>Class</th><th>Status</th><th>WODs</th><th>Model</th><th>Parsed</th><th>Time</th>
+            <th>WID</th><th>Date</th><th>Workout</th><th>Class</th><th>Status</th><th>WODs</th><th>Model</th><th>Parsed</th><th>Time</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="r in qaRecords" :key="r.id"
             :class="['clickable', { 'qa-selected-row': qaSelected?.id === r.id }]"
             @click="qaSelectRecord(r)">
+            <td class="wid-cell">{{ r.workout_id ?? '—' }}</td>
             <td>{{ r.workout_date ? r.workout_date.slice(0,10) : '—' }}</td>
             <td>{{ r.workout_name ?? '—' }}</td>
             <td><span :class="['qa-badge', `qa-class-${(r.content_class??'').toLowerCase()}`]">{{ r.content_class ?? '—' }}</span></td>
@@ -1023,6 +1025,7 @@ watch([() => dateRange.startDate, () => dateRange.endDate], async () => {
 .section-label { font-size: 0.75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
 
 .data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+.wid-cell { font-family: ui-monospace, monospace; color: var(--muted); font-size: 0.8em; white-space: nowrap; }
 .data-table th { text-align: left; padding: 6px 10px; color: var(--muted); font-weight: 600; font-size: 0.75rem; border-bottom: 1px solid var(--border); }
 .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text); }
 .workout-row:hover { background: var(--bg); }
