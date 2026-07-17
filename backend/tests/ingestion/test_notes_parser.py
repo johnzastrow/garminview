@@ -253,3 +253,14 @@ def test_call_llm_dispatches_by_backend_config():
         parser._cfg["parser.backend"] = "openai"
         parser._call_llm("u", "m", "s", "n")
         mo.assert_called_once()
+
+
+def test_movement_schema_has_cardio_fields():
+    """distance_m / calories / duration_s exist so cardio quantities (metres,
+    calories, timed holds) get their own fields instead of being crammed into
+    reps -- the top pattern from the parse-triage report."""
+    from garminview.ingestion.notes_parser import MovementSchema
+    props = set(MovementSchema.model_json_schema()["properties"])
+    assert {"distance_m", "calories", "duration_s"} <= props
+    m = MovementSchema.model_validate({"movement": "Run", "distance_m": 800})
+    assert m.distance_m == 800 and m.reps is None
