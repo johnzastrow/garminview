@@ -132,7 +132,7 @@ def test_seed_default_config_inserts_missing_keys():
     session = MagicMock()
     session.get.return_value = None  # nothing exists yet
     seed_default_config(session)
-    assert session.add.call_count == 4  # 4 config keys
+    assert session.add.call_count == 5  # 5 config keys (incl. parser.backend)
     session.commit.assert_called_once()
 
 
@@ -199,3 +199,57 @@ def test_parse_pending_drains_unstaged_not_just_first_n(session):
     assert called == [3]
     assert len(results) == 1
     assert results[0].workout_id == 3
+
+
+def test_call_openai_uses_schema_and_disables_thinking():
+    """The OpenAI-compatible backend must send response_format=json_schema
+    (constrained decoding) AND disable thinking (or qwen3.5 models hang)."""
+    session, _ = _make_session("x")
+    parser = NotesParser(session)
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "{}"}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5}}
+
+    def _fake_post(url, json=None, timeout=None):
+        captured["url"] = url
+        captured["json"] = json
+        return _Resp()
+
+    with patch("garminview.ingestion.notes_parser.httpx.post", side_effect=_fake_post):
+        raw, err, timing = parser._call_openai("http://gpu:8080", "qwen3.5-35b-a3b",
+                                               "sys", "note")
+
+    assert err is None and raw == "{}"
+    assert captured["url"].endswith("/v1/chat/completions")
+    body = captured["json"]
+    assert body["model"] == "qwen3.5-35b-a3b"
+    assert body["chat_template_kwargs"] == {"enable_thinking": False}
+    assert body["max_tokens"] == 2048
+    assert body["response_format"]["type"] == "json_schema"
+    assert body["response_format"]["json_schema"]["schema"] == ParsedNoteSchema.model_json_schema()
+    assert [m["role"] for m in body["messages"]] == ["system", "user"]
+    assert timing["llm_tokens_prompt"] == 10
+
+
+def test_call_llm_dispatches_by_backend_config():
+    """_call_llm routes to the OpenAI backend when parser.backend == 'openai',
+    otherwise to Ollama."""
+    session, _ = _make_session("x")
+    parser = NotesParser(session)
+    with patch.object(parser, "_call_openai", return_value=("o", None, {})) as mo, \
+         patch.object(parser, "_call_ollama", return_value=("l", None, {})) as ml:
+        # default backend -> ollama
+        parser._cfg.pop("parser.backend", None)
+        parser._call_llm("u", "m", "s", "n")
+        ml.assert_called_once()
+        mo.assert_not_called()
+        # backend=openai -> openai
+        parser._cfg["parser.backend"] = "openai"
+        parser._call_llm("u", "m", "s", "n")
+        mo.assert_called_once()
