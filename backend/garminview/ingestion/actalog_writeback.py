@@ -90,18 +90,23 @@ def _build_wod_description(wod: dict) -> str:
             weight = m.get("weight_lbs")
             notes = m.get("notes", "")
 
+            # measures are strings (may hold a male/female slash like "50/60")
             parts = []
             if sets and reps:
                 parts.append(f"{sets}x{reps}")
             elif reps:
                 parts.append(str(reps))
             elif m.get("distance_m"):
-                parts.append(f"{int(m['distance_m'])}m")
+                parts.append(f"{m['distance_m']}m")
             elif m.get("calories"):
                 parts.append(f"{m['calories']} cal")
             elif m.get("duration_s"):
-                _s = int(m["duration_s"])
-                parts.append(f"{_s // 60}:{_s % 60:02d}")
+                ds = str(m["duration_s"])
+                if ds.isdigit():
+                    _s = int(ds)
+                    parts.append(f"{_s // 60}:{_s % 60:02d}")
+                else:
+                    parts.append(f"{ds}s")
             parts.append(name)
             if weight:
                 parts.append(f"({weight}#)")
