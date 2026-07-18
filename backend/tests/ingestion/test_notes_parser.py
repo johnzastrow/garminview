@@ -55,7 +55,7 @@ def test_note_with_workout_keywords_calls_llm():
             "rpe": None,
             "intended_stimulus": None,
             "scaling_tiers": {
-                "rx": [{"movement": "Thrusters", "reps": 21, "sets": None, "weight_lbs": 95.0, "notes": None}],
+                "rx": [{"movement": "Thrusters", "reps": "21", "sets": None, "weight_lbs": "95", "notes": None}],
                 "intermediate": [],
                 "foundations": [],
             },
@@ -262,8 +262,10 @@ def test_movement_schema_has_cardio_fields():
     from garminview.ingestion.notes_parser import MovementSchema
     props = set(MovementSchema.model_json_schema()["properties"])
     assert {"distance_m", "calories", "duration_s"} <= props
-    m = MovementSchema.model_validate({"movement": "Run", "distance_m": 800})
-    assert m.distance_m == 800 and m.reps is None
+    m = MovementSchema.model_validate({"movement": "Run", "distance_m": "800"})
+    assert m.distance_m == "800" and m.reps is None
+    # male/female slash preserved verbatim
+    assert MovementSchema.model_validate({"movement": "Bike", "calories": "50/60"}).calories == "50/60"
 
 
 def test_mixed_without_notes_demoted_to_workout():

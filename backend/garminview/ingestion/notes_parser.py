@@ -279,27 +279,32 @@ _WORKOUT_KEYWORDS = re.compile(
 # ---------------------------------------------------------------------------
 
 class MovementSchema(BaseModel):
+    # Measures are STRINGS so a male/female split written as a slash (e.g. "50/60",
+    # "35/20") is reproduced verbatim. A single value is just its digits ("21").
     movement: str
-    reps: int | None = Field(
+    reps: str | None = Field(
         default=None,
-        description="Number of REPETITIONS only. Never put distance, calories, "
-                    "load, or time here — those have their own fields.")
-    sets: int | None = None
-    weight_lbs: float | None = Field(
-        default=None, description="Load/weight in pounds. Convert kg->lb (x2.205).")
-    distance_m: float | None = Field(
+        description="Repetitions, digits only ('21'). Reproduce a male/female slash "
+                    "as-is ('50/60'). Never put distance, calories, load, or time here.")
+    sets: str | None = None
+    weight_lbs: str | None = Field(
         default=None,
-        description="Distance in METERS for cardio (run/row/bike/ski/swim). Convert "
-                    "miles->m (x1609) and km->m (x1000). e.g. '800m run'->800, "
-                    "'1.3mi bike'->2092. This is NOT reps.")
-    calories: int | None = Field(
+        description="Load in pounds, digits only, no unit text ('95'). Reproduce a "
+                    "male/female slash as-is ('35/20'). Convert kg->lb (x2.205).")
+    distance_m: str | None = Field(
         default=None,
-        description="Calories for calorie-based cardio, e.g. '14 cal bike'->14, "
-                    "'Row Calories'->reps of calories. This is NOT reps.")
-    duration_s: int | None = Field(
+        description="Distance in METERS for cardio (run/row/bike/ski/swim), NOT reps. "
+                    "Convert miles->m (x1609), km->m (x1000): '800m run'->'800', "
+                    "'1.3mi bike'->'2092'. Reproduce a male/female slash as-is "
+                    "('1000/800').")
+    calories: str | None = Field(
         default=None,
-        description="Duration in SECONDS for a timed hold/effort, e.g. '1:00 plank'->60, "
-                    "':30 hollow hold'->30. This is NOT reps.")
+        description="Calories for calorie cardio, NOT reps: '14 cal bike'->'14'. "
+                    "Reproduce a male/female slash as-is ('50/60').")
+    duration_s: str | None = Field(
+        default=None,
+        description="Duration in SECONDS for a timed hold/effort: '1:00 plank'->'60', "
+                    "':30 hollow hold'->'30'. NOT reps.")
     notes: str | None = None
 
 
