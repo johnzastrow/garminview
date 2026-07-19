@@ -10,6 +10,7 @@ Pipeline per note:
 The system prompt is stored in app_config under key "parser.system_prompt"
 so it can be edited from the Admin UI without a code deployment.
 """
+
 from __future__ import annotations
 
 import json
@@ -17,6 +18,7 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Any
+from urllib.parse import unquote
 
 import httpx
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -265,18 +267,57 @@ CORRECT: one wods entry named "Wall Ball State" with the travel movements in \
 scaling_tiers.travel[]
 """
 
-# Workout-related keywords — presence suggests a parseable note
+# Workout-related keywords — presence suggests a parseable note. The trailing
+# \w* (not \b) lets a stem match its inflections: "run" -> "Running", "squat" ->
+# "squats", "pull.?up" -> "pull ups". Without it, plurals and gerunds slip through
+# and real bodyweight sessions get dropped. Over-matching only costs a wasted LLM
+# call (the note then classifies as SKIP/PERFORMANCE_ONLY); under-matching silently
+# loses a workout, so the gate deliberately biases toward matching.
 _WORKOUT_KEYWORDS = re.compile(
-    r"\b(amrap|emom|for time|reps|sets|rounds|deadlift|squat|pull.?up|push.?up|"
-    r"thruster|snatch|clean|jerk|row|run|score|rx|wod|workout|press|swing|lunge|"
-    r"box jump|burpee|muscle.?up|kettlebell|barbell|dumbbell|kb|db)\b",
+    r"\b(amrap|emom|tabata|for time|rft|reps|sets|rounds|deadlift|squat|"
+    r"pull.?up|push.?up|sit.?up|step.?up|thruster|snatch|clean|jerk|row|run|jog|"
+    r"bike|ski|score|rx|wod|workout|press|swing|lunge|box jump|burpee|"
+    r"muscle.?up|handstand|plank|wall ball|wall walk|double under|single under|"
+    r"kettlebell|barbell|dumbbell|kb|db)\w*",
     re.IGNORECASE,
 )
+
+# Matches a percent-escape (%20, %0A, ...) — the signature of a URL-encoded note.
+_PERCENT_ESCAPE = re.compile(r"%[0-9A-Fa-f]{2}")
+
+
+def _maybe_url_decode(notes: str) -> str:
+    """Decode a note that was stored percent-encoded (spaces as %20, newlines as
+    %0A, colons as %3A, ...) back to plain text.
+
+    A handful of notes arrive URL-encoded. That both defeats the keyword pre-pass
+    (the '%20' digits glue onto the next word, destroying the \\b boundaries the
+    regex needs) and degrades LLM extraction. We decode ONLY when the note is
+    unambiguously encoded — no literal whitespace anywhere, yet carrying %XX
+    escapes, and where decoding actually reconstitutes whitespace. A normal note
+    always contains spaces (e.g. "75% of 1RM"), so a literal '%' is never touched.
+    Fails closed: any ambiguity returns the input unchanged.
+    """
+    if not notes or any(c.isspace() for c in notes):
+        return notes  # genuine free text always has whitespace — leave it alone
+    if not _PERCENT_ESCAPE.search(notes):
+        return notes
+    try:
+        decoded = unquote(notes, errors="strict")
+    except (ValueError, UnicodeDecodeError):
+        return notes
+    # Accept the decode only if it truly reconstituted whitespace (real encoding,
+    # not a coincidental %XX). Strip NUL bytes defensively before it reaches the
+    # DB write and structured logs.
+    if decoded == notes or not any(c.isspace() for c in decoded):
+        return notes
+    return decoded.replace("\x00", "")
 
 
 # ---------------------------------------------------------------------------
 # Pydantic output schema
 # ---------------------------------------------------------------------------
+
 
 class MovementSchema(BaseModel):
     # Measures are STRINGS so a male/female split written as a slash (e.g. "50/60",
@@ -285,26 +326,31 @@ class MovementSchema(BaseModel):
     reps: str | None = Field(
         default=None,
         description="Repetitions, digits only ('21'). Reproduce a male/female slash "
-                    "as-is ('50/60'). Never put distance, calories, load, or time here.")
+        "as-is ('50/60'). Never put distance, calories, load, or time here.",
+    )
     sets: str | None = None
     weight_lbs: str | None = Field(
         default=None,
         description="Load in pounds, digits only, no unit text ('95'). Reproduce a "
-                    "male/female slash as-is ('35/20'). Convert kg->lb (x2.205).")
+        "male/female slash as-is ('35/20'). Convert kg->lb (x2.205).",
+    )
     distance_m: str | None = Field(
         default=None,
         description="Distance in METERS for cardio (run/row/bike/ski/swim), NOT reps. "
-                    "Convert miles->m (x1609), km->m (x1000): '800m run'->'800', "
-                    "'1.3mi bike'->'2092'. Reproduce a male/female slash as-is "
-                    "('1000/800').")
+        "Convert miles->m (x1609), km->m (x1000): '800m run'->'800', "
+        "'1.3mi bike'->'2092'. Reproduce a male/female slash as-is "
+        "('1000/800').",
+    )
     calories: str | None = Field(
         default=None,
         description="Calories for calorie cardio, NOT reps: '14 cal bike'->'14'. "
-                    "Reproduce a male/female slash as-is ('50/60').")
+        "Reproduce a male/female slash as-is ('50/60').",
+    )
     duration_s: str | None = Field(
         default=None,
         description="Duration in SECONDS for a timed hold/effort: '1:00 plank'->'60', "
-                    "':30 hollow hold'->'30'. NOT reps.")
+        "':30 hollow hold'->'30'. NOT reps.",
+    )
     notes: str | None = None
 
 
@@ -327,13 +373,15 @@ class WodSchema(BaseModel):
     time_cap_min: int | None = Field(
         default=None,
         description="Time cap in whole minutes if the note states one (e.g. 'Time Cap: "
-                    "15:00' -> 15). Applies to ANY capped WOD (FOR_TIME, CHIPPER, AMRAP, "
-                    "...), not only AMRAP.")
+        "15:00' -> 15). Applies to ANY capped WOD (FOR_TIME, CHIPPER, AMRAP, "
+        "...), not only AMRAP.",
+    )
     rounds: str | None = Field(
         default=None,
         description="Whole-WOD round count as written, e.g. '6' for '6 Rounds:', '3' for "
-                    "'3 RFT'. This describes the WOD structure — do NOT also copy it onto "
-                    "each movement's 'sets'; each movement keeps only its own measure.")
+        "'3 RFT'. This describes the WOD structure — do NOT also copy it onto "
+        "each movement's 'sets'; each movement keeps only its own measure.",
+    )
     scaling_tiers: ScalingTiersSchema = Field(default_factory=ScalingTiersSchema)
 
     @field_validator("rpe", mode="before")
@@ -368,6 +416,7 @@ class ParsedNoteSchema(BaseModel):
 # Parser service
 # ---------------------------------------------------------------------------
 
+
 class NotesParser:
     """Parse a single actalog workout note via Ollama and write to staging."""
 
@@ -377,8 +426,13 @@ class NotesParser:
         self._load_config()
 
     def _load_config(self) -> None:
-        keys = [CONFIG_KEY_PROMPT, CONFIG_KEY_MODEL, CONFIG_KEY_URL,
-                CONFIG_KEY_MIN_LENGTH, CONFIG_KEY_BACKEND]
+        keys = [
+            CONFIG_KEY_PROMPT,
+            CONFIG_KEY_MODEL,
+            CONFIG_KEY_URL,
+            CONFIG_KEY_MIN_LENGTH,
+            CONFIG_KEY_BACKEND,
+        ]
         rows = self._session.query(AppConfig).filter(AppConfig.key.in_(keys)).all()
         self._cfg = {r.key: r.value for r in rows if r.value}
 
@@ -402,22 +456,31 @@ class NotesParser:
         if workout is None:
             raise ValueError(f"Workout {workout_id} not found")
 
-        notes = (workout.notes or "").strip()
+        # Decode notes stored percent-encoded (see _maybe_url_decode) before both
+        # the keyword pre-pass and the LLM see them; the raw source column is left
+        # untouched.
+        notes = _maybe_url_decode((workout.notes or "").strip())
 
         # Regex pre-pass — skip without calling the LLM (unless forced)
         if not force:
             content_class, skip_reason = self._classify_trivial(notes)
             if content_class == "SKIP":
-                return self._write_staging(workout, notes, content_class, None, None, skip_reason)
+                return self._write_staging(
+                    workout, notes, content_class, None, None, skip_reason
+                )
 
         # LLM call
         model = self._get(CONFIG_KEY_MODEL, DEFAULT_MODEL)
         ollama_url = self._get(CONFIG_KEY_URL, DEFAULT_OLLAMA_URL)
         system_prompt = self._get(CONFIG_KEY_PROMPT, DEFAULT_SYSTEM_PROMPT)
 
-        raw_json, error, timing = self._call_llm(ollama_url, model, system_prompt, notes)
+        raw_json, error, timing = self._call_llm(
+            ollama_url, model, system_prompt, notes
+        )
         if error:
-            return self._write_staging(workout, notes, "SKIP", None, None, error, model, timing)
+            return self._write_staging(
+                workout, notes, "SKIP", None, None, error, model, timing
+            )
 
         # Pydantic validation
         parsed, error = self._validate(raw_json)
@@ -441,15 +504,23 @@ class NotesParser:
                     raw_json, error, parsed, timing = raw_json2, None, parsed2, timing2
 
         if error:
-            return self._write_staging(workout, notes, "SKIP", raw_json, None, error, model, timing)
+            return self._write_staging(
+                workout, notes, "SKIP", raw_json, None, error, model, timing
+            )
 
         # Write formatted/performance notes immediately to workout row
         workout.formatted_notes = parsed.formatted_markdown
         workout.performance_notes = parsed.performance_notes
 
         return self._write_staging(
-            workout, notes, parsed.content_class,
-            raw_json, parsed.formatted_markdown, None, model, timing,
+            workout,
+            notes,
+            parsed.content_class,
+            raw_json,
+            parsed.formatted_markdown,
+            None,
+            model,
+            timing,
         )
 
     def parse_pending(self, limit: int = 50) -> list[ActalogNoteParse]:
@@ -461,9 +532,8 @@ class NotesParser:
         window. NULL workout_ids are excluded from the staged subquery so SQL's
         ``NOT IN (NULL)`` semantics don't wipe out the whole result set.
         """
-        staged = (
-            self._session.query(ActalogNoteParse.workout_id)
-            .filter(ActalogNoteParse.workout_id.isnot(None))
+        staged = self._session.query(ActalogNoteParse.workout_id).filter(
+            ActalogNoteParse.workout_id.isnot(None)
         )
         workouts = (
             self._session.query(ActalogWorkout)
@@ -481,8 +551,12 @@ class NotesParser:
                 record = self.parse_workout(w.id)
                 self._session.commit()
                 results.append(record)
-                log.info("notes_parser.parsed", workout_id=w.id, status=record.parse_status,
-                         content_class=record.content_class)
+                log.info(
+                    "notes_parser.parsed",
+                    workout_id=w.id,
+                    status=record.parse_status,
+                    content_class=record.content_class,
+                )
             except Exception as exc:
                 self._session.rollback()
                 log.error("notes_parser.error", workout_id=w.id, error=str(exc))
@@ -502,7 +576,11 @@ class NotesParser:
         return "UNKNOWN", None
 
     def _call_llm(
-        self, base_url: str, model: str, system_prompt: str, note: str,
+        self,
+        base_url: str,
+        model: str,
+        system_prompt: str,
+        note: str,
     ) -> tuple[str | None, str | None, dict]:
         """Dispatch to the configured LLM backend. Same return contract for both."""
         backend = self._get(CONFIG_KEY_BACKEND, DEFAULT_BACKEND).lower()
@@ -511,7 +589,11 @@ class NotesParser:
         return self._call_ollama(base_url, model, system_prompt, note)
 
     def _call_openai(
-        self, base_url: str, model: str, system_prompt: str, note: str,
+        self,
+        base_url: str,
+        model: str,
+        system_prompt: str,
+        note: str,
     ) -> tuple[str | None, str | None, dict]:
         """Call an OpenAI-compatible /v1/chat/completions endpoint (llama.cpp,
         vLLM, ...) with response_format=json_schema for constrained decoding.
@@ -565,12 +647,24 @@ class NotesParser:
             }
             return body["choices"][0]["message"]["content"], None, timing
         except httpx.TimeoutException:
-            return None, f"LLM request timed out (>{timeout}s)", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+            return (
+                None,
+                f"LLM request timed out (>{timeout}s)",
+                {"parse_duration_s": round(time.monotonic() - t0, 3)},
+            )
         except Exception as exc:
-            return None, f"OpenAI-compatible LLM error: {exc}", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+            return (
+                None,
+                f"OpenAI-compatible LLM error: {exc}",
+                {"parse_duration_s": round(time.monotonic() - t0, 3)},
+            )
 
     def _call_ollama(
-        self, base_url: str, model: str, system_prompt: str, note: str,
+        self,
+        base_url: str,
+        model: str,
+        system_prompt: str,
+        note: str,
     ) -> tuple[str | None, str | None, dict]:
         """Call Ollama and return (raw_json_string, error_message, timing_dict).
 
@@ -605,13 +699,23 @@ class NotesParser:
                 "parse_duration_s": round(time.monotonic() - t0, 3),
                 "llm_tokens_prompt": body.get("prompt_eval_count"),
                 "llm_tokens_generated": body.get("eval_count"),
-                "llm_inference_s": round(body["eval_duration"] / 1e9, 3) if body.get("eval_duration") else None,
+                "llm_inference_s": round(body["eval_duration"] / 1e9, 3)
+                if body.get("eval_duration")
+                else None,
             }
             return body["response"], None, timing
         except httpx.TimeoutException:
-            return None, f"Ollama request timed out (>{timeout}s)", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+            return (
+                None,
+                f"Ollama request timed out (>{timeout}s)",
+                {"parse_duration_s": round(time.monotonic() - t0, 3)},
+            )
         except Exception as exc:
-            return None, f"Ollama error: {exc}", {"parse_duration_s": round(time.monotonic() - t0, 3)}
+            return (
+                None,
+                f"Ollama error: {exc}",
+                {"parse_duration_s": round(time.monotonic() - t0, 3)},
+            )
 
     @staticmethod
     def _repair_json(raw: str) -> str | None:
@@ -626,13 +730,13 @@ class NotesParser:
         import re
 
         # Extract JSON object if wrapped in markdown code block or extra text
-        match = re.search(r'\{[\s\S]*\}', raw)
+        match = re.search(r"\{[\s\S]*\}", raw)
         if not match:
             return None
         extracted = match.group(0)
 
         # Remove trailing commas before } or ]
-        fixed = re.sub(r',\s*([}\]])', r'\1', extracted)
+        fixed = re.sub(r",\s*([}\]])", r"\1", extracted)
 
         # Try parsing
         try:
@@ -662,7 +766,9 @@ class NotesParser:
         llm_model: str | None = None,
         timing: dict | None = None,
     ) -> ActalogNoteParse:
-        status = "pending" if not error_message and content_class != "SKIP" else "skipped"
+        status = (
+            "pending" if not error_message and content_class != "SKIP" else "skipped"
+        )
         t = timing or {}
         record = ActalogNoteParse(
             workout_id=workout.id,
@@ -694,6 +800,7 @@ class NotesParser:
 # ---------------------------------------------------------------------------
 # Config seeding helper
 # ---------------------------------------------------------------------------
+
 
 def seed_default_config(session: Session, update_prompt: bool = False) -> None:
     """Insert default parser config keys if not already present.
