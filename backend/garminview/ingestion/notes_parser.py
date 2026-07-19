@@ -324,7 +324,16 @@ class WodSchema(BaseModel):
     score_type: str | None = None
     rpe: int | None = None
     intended_stimulus: str | None = None
-    time_cap_min: int | None = None
+    time_cap_min: int | None = Field(
+        default=None,
+        description="Time cap in whole minutes if the note states one (e.g. 'Time Cap: "
+                    "15:00' -> 15). Applies to ANY capped WOD (FOR_TIME, CHIPPER, AMRAP, "
+                    "...), not only AMRAP.")
+    rounds: str | None = Field(
+        default=None,
+        description="Whole-WOD round count as written, e.g. '6' for '6 Rounds:', '3' for "
+                    "'3 RFT'. This describes the WOD structure — do NOT also copy it onto "
+                    "each movement's 'sets'; each movement keeps only its own measure.")
     scaling_tiers: ScalingTiersSchema = Field(default_factory=ScalingTiersSchema)
 
     @field_validator("rpe", mode="before")

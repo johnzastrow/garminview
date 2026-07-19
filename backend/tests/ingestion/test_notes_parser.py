@@ -276,3 +276,13 @@ def test_mixed_without_notes_demoted_to_workout():
     # real commentary keeps MIXED; other classes untouched
     assert P(content_class="MIXED", performance_notes="felt strong").content_class == "MIXED"
     assert P(content_class="WORKOUT").content_class == "WORKOUT"
+
+
+def test_wod_schema_has_rounds_and_generic_timecap():
+    """rounds captures '6 Rounds' at WOD level (not sets per movement); time_cap_min
+    is generic (not AMRAP-only)."""
+    from garminview.ingestion.notes_parser import WodSchema
+    w = WodSchema.model_validate({"name": "Dual It'll Dance", "regime": "FOR_TIME",
+                                  "rounds": "6", "time_cap_min": 15})
+    assert w.rounds == "6" and w.time_cap_min == 15
+    assert "rounds" in WodSchema.model_json_schema()["properties"]
