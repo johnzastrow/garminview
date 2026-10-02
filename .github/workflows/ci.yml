@@ -28,8 +28,13 @@ jobs:
           enable-cache: true
       - name: Set up Python
         run: uv python install 3.12
+      # The image installs with `uv sync --frozen`, from uv.lock alone. A lock
+      # that disagrees with pyproject.toml fails here, rather than silently
+      # shipping something other than what pyproject says.
+      - name: uv.lock matches pyproject.toml
+        run: uv lock --check
       - name: Run tests
-        run: uv run --extra dev pytest -q
+        run: uv run --locked --extra dev pytest -q
 
   frontend:
     name: Frontend (type-check · vitest · build)
@@ -40,7 +45,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm

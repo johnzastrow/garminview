@@ -1,6 +1,9 @@
 version: 2
 updates:
-  - package-ecosystem: "pip"
+  # "uv", not "pip": the pip ecosystem bumps pyproject.toml alone and leaves
+  # uv.lock behind, and the image installs from uv.lock -- so pip-style bumps
+  # changed nothing that runs and let the two drift apart (fixed in 0.10.3).
+  - package-ecosystem: "uv"
     directory: "/backend"
     schedule:
       interval: "weekly"
