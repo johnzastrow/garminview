@@ -51,12 +51,22 @@ async def _run_sync() -> None:
         garmindb_cli = shutil.which("garmindb_cli.py")
         if garmindb_cli:
             _broadcast("log", "▶ Starting GarminDB download (--latest)...")
+            # garmindb_cli.py writes garmindb.log into its working directory.
+            # Started from /app (root-owned in the image) it cannot, now that the
+            # container runs as an unprivileged user; run it in the log
+            # directory, which is writable and persisted, beside sync.log.
+            from pathlib import Path
+
+            from garminview.core.config import get_config
+            work_dir = Path(get_config().log_dir).expanduser()
+            work_dir.mkdir(parents=True, exist_ok=True)
             proc = await asyncio.create_subprocess_exec(
                 garmindb_cli,
                 "--all", "--download", "--import", "--latest",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
                 env={**os.environ, "GARMINDB_LOG_LEVEL": "WARNING"},
+                cwd=str(work_dir),
             )
             async for raw in proc.stdout:
                 line = raw.decode().rstrip()
