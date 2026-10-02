@@ -92,3 +92,50 @@ def test_logs_returns_tail(make_client, monkeypatch, tmp_path):
     assert resp.status_code == 200
     # Only the last 2 lines, with trailing newlines stripped.
     assert resp.json() == {"lines": ["line-2", "line-3"]}
+
+
+def test_garmindb_runs_in_the_writable_log_dir(monkeypatch, tmp_path):
+    """garmindb_cli.py writes garmindb.log into its working directory. The
+    container runs as an unprivileged user and /app is root-owned, so the
+    download must be started in the (writable) log directory, or the nightly
+    sync fails before it begins."""
+    import asyncio
+
+    from garminview.core import config as config_mod
+
+    log_dir = tmp_path / "logs"
+
+    class _Cfg:
+        pass
+
+    _Cfg.log_dir = str(log_dir)
+    monkeypatch.setattr(config_mod, "get_config", lambda: _Cfg())
+    monkeypatch.setattr(sync_mod.shutil, "which", lambda name: "/fake/garmindb_cli.py")
+    monkeypatch.setattr(sync_mod, "_file_logger", None, raising=False)
+
+    seen = {}
+
+    class _FakeProc:
+        stdout = None
+
+        async def wait(self):
+            return 1  # stop the sync right after the download step
+
+    class _Lines:
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            raise StopAsyncIteration
+
+    async def fake_exec(*args, **kwargs):
+        seen.update(kwargs)
+        proc = _FakeProc()
+        proc.stdout = _Lines()
+        return proc
+
+    monkeypatch.setattr(sync_mod.asyncio, "create_subprocess_exec", fake_exec)
+    asyncio.run(sync_mod._run_sync())
+
+    assert seen.get("cwd") == str(log_dir)
+    assert log_dir.is_dir(), "the working directory is created if missing"

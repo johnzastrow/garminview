@@ -6,8 +6,9 @@ services:
     volumes:
       # Raw Garmin data written by garmindb_cli.py on the host (read-only in container)
       - ${HEALTH_DATA_DIR:-~/HealthData}:/data/HealthData
-      # Garmin Connect credentials for garmindb_cli.py (read-only)
-      - ${GARMINDB_CONFIG_DIR:-~/.GarminDb}:/root/.GarminDb:ro
+      # Garmin Connect credentials for garmindb_cli.py (read-only). The backend
+      # runs as an unprivileged user whose home is /home/garminview.
+      - ${GARMINDB_CONFIG_DIR:-~/.GarminDb}:/home/garminview/.GarminDb:ro
       # Persistent sync log
       - garminview-logs:/app/logs
     restart: unless-stopped
@@ -15,7 +16,9 @@ services:
   frontend:
     image: ghcr.io/johnzastrow/garminview-frontend:${IMAGE_TAG:-latest}
     ports:
-      - "${GARMINVIEW_PORT:-8080}:80"
+      # Caddy listens on 8080 inside the container: it runs as a non-root
+      # user, which cannot bind port 80.
+      - "${GARMINVIEW_PORT:-8080}:8080"
     depends_on:
       - backend
     restart: unless-stopped
