@@ -22,3 +22,7 @@ polar-user-data-export*.zip
 # IDE
 .idea/
 .vscode/
+
+# pytest-cov data file
+.coverage
+.coverage.*
