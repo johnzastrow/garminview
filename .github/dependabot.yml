@@ -9,6 +9,17 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    groups:
+      # One PR per week for routine updates instead of one per package. Each
+      # closed PR otherwise frees a slot that Dependabot refills at once from
+      # its backlog. Major versions still arrive individually for review.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
+    ignore:
+      # garmindb pins sqlalchemy to one exact version per release
+      # (3.7.0 -> 2.0.46, 3.9+ -> 2.0.52), so sqlalchemy moves with garmindb;
+      # a standalone bump can never resolve.
+      - dependency-name: "sqlalchemy"
     labels:
       - "dependencies"
       - "python"
@@ -19,6 +30,10 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
+    groups:
+      # Same as /backend: one weekly PR for minor and patch updates.
+      minor-and-patch:
+        update-types: ["minor", "patch"]
     ignore:
       # TypeScript 7 is the native (Go) compiler and drops the JS API that
       # vue-tsc loads (typescript/lib/tsc), so `npm run type-check` cannot run
