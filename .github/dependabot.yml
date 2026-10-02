@@ -20,6 +20,10 @@ updates:
       # (3.7.0 -> 2.0.46, 3.9+ -> 2.0.52), so sqlalchemy moves with garmindb;
       # a standalone bump can never resolve.
       - dependency-name: "sqlalchemy"
+      # garmindb 3.7.0 bumps its garmin_monitoring schema (6 -> 7) and refuses
+      # to sync until that DB is rebuilt from the downloaded files. Hold
+      # garmindb until the rebuild is planned; remove this entry to resume.
+      - dependency-name: "garmindb"
     labels:
       - "dependencies"
       - "python"
