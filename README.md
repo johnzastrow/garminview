@@ -80,6 +80,7 @@ See **[docs/SETUP.md](docs/SETUP.md)** for the full walkthrough.
 
 ### Upcoming
 
+- Frontend v2 redesign, in progress on branch `frontend-v2` (preview on port 5174; see [frontend-v2/README.md](frontend-v2/README.md))
 - Polar Flow GDPR export import (26 staging tables)
 - HR Zones chart (age-adapted Karvonen zones)
 - Data Management Tasks Panel

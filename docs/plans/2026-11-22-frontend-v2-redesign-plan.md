@@ -177,6 +177,8 @@ Current routes (19 pages) grouped by task, used by every option:
 
 ## TODO (paused 2026-11-23)
 
+Superseded by "Current TODO" at the end of this file; kept as the record of the pause.
+
 Awaiting user feedback
 - [ ] User reacts to the calendar home (blue bar as calories vs steps; bar scaling linear vs square-root; "Missing watch" 6 Oct counted as workout).
 
@@ -240,6 +242,8 @@ Evidence from the dev DB (1 Oct to 21 Nov 2026): on logged-workout days, workout
 
 ## Status at pause (2026-11-23)
 
+Superseded by the Progress section below (branch created, scaffold and Sleep view built, plan committed in d1221ff).
+
 - Done: plan, direction A, navigation (icon rail plus section panel), calendar prototype, Phase 1 style board signed off.
 - Artifacts (private): design canvas https://claude.ai/artifact/L2Z7aA3U51WDQR5sVCSJaU ; style board https://claude.ai/artifact/M7QrRUX9AuhU3YAtg5jFpQ
 - Not started: `frontend-v2/` (no branch created yet), Phase 2 scaffold.
@@ -256,4 +260,32 @@ Evidence from the dev DB (1 Oct to 21 Nov 2026): on logged-workout days, workout
 - API calls use relative URLs; the Vite dev proxy (port 5174) forwards API paths to 127.0.0.1:8000, mirroring Caddy. No backend or CORS change.
 - Sleep view built: four tiles (last night, score, deep share, REM share) with target bands, nightly duration with 7-night average and 7-9 h band, stage shares, score with bands, recent-nights table. Zero-minute nights are shown as "not recorded".
 - Checks: `vue-tsc --build` clean; 16 unit tests pass; `vite build` passes (SleepView chunk 645 kB because it carries ECharts; split later); Playwright 1440x900 shows no console errors and no horizontal overflow.
+- Commits (local, not pushed): d1221ff (plan and prototypes), ecfc178 (scaffold and Sleep view).
+- Not verified by hand: range toggle clicks and chart tooltips (only the headless screenshot was checked).
+- Known issues: the "good" (80) label on the score chart can overlap the line; 18 of 19 pages are placeholders.
+- `npm audit`: 5 moderate findings in the dev-only `@vue/test-utils` chain (js-beautify, glob, minimatch). Same as the old frontend; nothing ships to the browser. Accepted for now.
+- Security notes: tooltip HTML is escaped with `esc()` in `src/charts/theme.ts`; no `v-html`; no secrets in code; fonts from npm, no CDN; user-facing errors are generic, details go to the console.
+- Developer notes: see `frontend-v2/README.md`.
 - Waiting on: user rating (1-5) of the Sleep view.
+
+## Current TODO (2026-11-23)
+
+Awaiting user
+- [ ] Rate the Sleep view 1-5 at http://localhost:5174/sleep (KR4.1; baseline 3, target average 4 or higher).
+- [ ] Approve the next screen. Nothing new is built before that.
+
+Next screens, one at a time, each rated before the next
+- [ ] Calendar home at `/` (option C). First settle the intensity-to-kcal formula, then design the "not logged" icon.
+- [ ] Day detail at `/day/:date` (decision #1).
+- [ ] Admin at `/system-admin`.
+- [ ] Remaining views (Phase 4), then cutover (Phase 5). Version bump, changelog and tag only on merge, with user approval.
+
+Engineering
+- [ ] Split ECharts into its own chunk when a second chart screen lands (SleepView chunk is 645 kB).
+- [ ] Fix the score chart label overlap.
+- [ ] Remove the unused `.soon` style in `SectionPanel.vue`.
+- [ ] Mobile layouts: deferred until desktop is finished.
+
+Housekeeping
+- [ ] Stop the backend (8000) and the v2 dev server (5174) when pausing; the scheduler fires at 03:00 and 04:00.
+- [ ] `backend/logs/sync.log` shows as modified; it is runtime output and is left out of commits.
