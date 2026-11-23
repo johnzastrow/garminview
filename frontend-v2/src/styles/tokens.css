@@ -1,0 +1,57 @@
+/* Direction A, "instrument panel". Dark only (decision 2026-11-23).
+   Rule: hue means data or status. Interface chrome (selection, focus, today) uses the ice accent only.
+   Values signed off on the Phase 1 style board. */
+:root {
+  color-scheme: dark;
+
+  /* Gray ramp, hue 210-215, low saturation */
+  --canvas: #11151a;
+  --panel: #181d23;
+  --raised: #1f252c;
+  --hover: #232a32;
+  --border: #2a323b;
+  --border-strong: #3b4652;
+  --text: #e6eaef;
+  --muted: #9aa6b2;
+  --faint: #66717d; /* decoration and empty values only, never body text */
+  --accent: #d4e4f5;
+  --on-accent: #0e1217;
+
+  /* Data: daily activity */
+  --d-steps: #4da3e0;
+  --d-total: #e5594f;
+  --d-work: #f2c230;
+
+  /* Data: sleep (an indigo-to-orchid family, kept away from the steps blue) */
+  --d-sleep: #8e90ec;
+  --d-deep: #6366d9;
+  --d-light: #a9abf2;
+  --d-rem: #c77ddb;
+  --d-awake: #66717d;
+
+  /* Status: always paired with an icon and a word */
+  --s-ok: #46c28a;
+  --s-warn: #e08a3a;
+  --s-err: #ff6b8a;
+
+  /* Type */
+  --font-ui: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-num: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 22px;
+  --fs-num: 30px;
+
+  /* Space and shape */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --radius: 3px;
+  --rail-w: 56px;
+  --panel-w: 208px;
+}

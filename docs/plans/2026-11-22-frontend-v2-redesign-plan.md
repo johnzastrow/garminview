@@ -246,3 +246,14 @@ Evidence from the dev DB (1 Oct to 21 Nov 2026): on logged-workout days, workout
 - Next action: create branch `frontend-v2`, scaffold `frontend-v2/` (Vite, Vue 3, Pinia, vue-router, ECharts), tokens and fonts (Archivo, JetBrains Mono via fontsource), app shell with icon rail, core components, then the Sleep view. Report type-check and unit test output and a screenshot of the shell.
 - Dev servers may still be running on rainbozen (backend 8000, frontend 5173). Stop them before the reboot; they do not survive it anyway.
 - Plan file is uncommitted.
+
+## Progress (2026-11-23, Phase 2 and first Phase 3 screen)
+
+- Branch `frontend-v2` created. `frontend-v2/` scaffolded: Vue 3, Vite 8, Pinia, vue-router, vue-echarts; Archivo and JetBrains Mono self-hosted via fontsource.
+- Tokens (`src/styles/tokens.css`), ECharts theme (`src/charts/theme.ts`, no animation), shell (icon rail plus section panel), components: PageHeader, Panel, KpiTile with TickScale, RangeToggle, StatusLine.
+- Routes are generated from `src/nav/sections.ts`. Page paths avoid the API proxy prefixes; a unit test enforces it.
+  Renamed paths that clashed: activities -> /activity-log, nutrition -> /food, assessments -> /goals, admin -> /system-admin, actalog -> /workouts, body -> /weight.
+- API calls use relative URLs; the Vite dev proxy (port 5174) forwards API paths to 127.0.0.1:8000, mirroring Caddy. No backend or CORS change.
+- Sleep view built: four tiles (last night, score, deep share, REM share) with target bands, nightly duration with 7-night average and 7-9 h band, stage shares, score with bands, recent-nights table. Zero-minute nights are shown as "not recorded".
+- Checks: `vue-tsc --build` clean; 16 unit tests pass; `vite build` passes (SleepView chunk 645 kB because it carries ECharts; split later); Playwright 1440x900 shows no console errors and no horizontal overflow.
+- Waiting on: user rating (1-5) of the Sleep view.
