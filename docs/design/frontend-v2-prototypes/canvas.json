@@ -1,0 +1,70 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Main.dc.html": {
+      "expand": "fill",
+      "h": 960,
+      "is_interactive": true,
+      "title": "Chosen: icon rail, calendar home",
+      "w": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "Option2.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "title": "Not chosen: top section bar plus page tabs",
+      "w": 1280,
+      "x": 1360,
+      "y": 0
+    },
+    "Option3.dc.html": {
+      "expand": "fill",
+      "h": 900,
+      "is_interactive": true,
+      "title": "Not chosen: command palette plus pinned boards",
+      "w": 1280,
+      "x": 2720,
+      "y": 0
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-11-23T00:30:00Z",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "focused",
+    "file": "Main.dc.html"
+  },
+  "noteOrder": [
+    "title",
+    "caveat"
+  ],
+  "notes": {
+    "caveat": {
+      "fill": "gray",
+      "text": "The calendar uses real daily data from the running app, 1 October to 21 November 2026 (steps, sleep, resting HR, body battery, stress, active kcal, logged activities). Each square: date, the selected metric, an orange bar for workout kcal (logged activities) and a blue bar for non-workout kcal (active kcal minus workouts). Click a square for that day, a metric to change the large value and shade, and the arrows for October. Pages other than Overview are empty on purpose. The two unchosen options still show the earlier dashboard home and are kept for reference.",
+      "w": 640,
+      "x": 0,
+      "y": 1020
+    },
+    "title": {
+      "kind": "title1",
+      "maxW": 4000,
+      "text": "GarminView v2: icon rail navigation, calendar home (Direction A)",
+      "w": 240,
+      "x": 0,
+      "y": -240
+    }
+  },
+  "order": [
+    "Main.dc.html",
+    "Option2.dc.html",
+    "Option3.dc.html"
+  ],
+  "pages": [],
+  "title": "GarminView v2 navigation"
+}

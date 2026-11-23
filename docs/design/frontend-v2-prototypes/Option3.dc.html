@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Option 3: command palette and pinned boards</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#13161A}
+button,input{font-family:inherit}
+button:focus-visible,input:focus-visible{outline:2px solid #E8A33D;outline-offset:2px}
+</style>
+</helmet>
+<div style="position:relative;min-height:900px;background:#13161A;color:#E4E8EC;font-family:'IBM Plex Sans',sans-serif;font-size:14px;display:flex;flex-wrap:wrap;align-items:stretch">
+
+  <!-- Minimal rail: sections only -->
+  <nav aria-label="Sections" style="flex:0 0 56px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;border-right:1px solid #2B3138;background:#101316">
+    <div style="width:32px;height:32px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;border:1px solid #E8A33D;border-radius:3px;color:#E8A33D;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:13px">GV</div>
+    <button aria-label="Today" title="Today" onClick="{{goToday}}" style="{{railToday}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="1.5"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg></button>
+    <button aria-label="Training" title="Training" onClick="{{goTraining}}" style="{{railTraining}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 10h3.5l2-5 3.5 10 2-5H18"/></svg></button>
+    <button aria-label="Body" title="Body" onClick="{{goBody}}" style="{{railBody}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="6" r="2.8"/><path d="M4.5 17c0-3.2 2.4-5.5 5.5-5.5s5.5 2.3 5.5 5.5"/></svg></button>
+    <button aria-label="Analysis" title="Analysis" onClick="{{goAnalysis}}" style="{{railAnalysis}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 16h14"/><path d="M5.5 13v-3M10 13V5M14.5 13V8"/></svg></button>
+    <button aria-label="System" title="System" onClick="{{goSystem}}" style="{{railSystem}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 6h14M3 14h14"/><circle cx="7" cy="6" r="1.8" fill="#101316"/><circle cx="13" cy="14" r="1.8" fill="#101316"/></svg></button>
+  </nav>
+
+  <div style="flex:999 1 560px;min-width:0;display:flex;flex-direction:column">
+    <!-- Top bar: location + Jump to -->
+    <header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;padding:10px 28px;border-bottom:1px solid #2B3138;background:#101316">
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">{{crumb}}</div>
+      <div style="display:flex;flex-wrap:wrap;align-items:center;gap:12px">
+        <button onClick="{{openPalette}}" style="display:flex;align-items:center;gap:24px;height:34px;min-width:260px;padding:0 12px;border:1px solid #3A424A;border-radius:3px;background:#1A1E23;color:#98A2AD;font-size:13px;cursor:pointer;text-align:left">
+          <span style="flex:1 1 auto">Jump to a page or board</span>
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;border:1px solid #3A424A;border-radius:2px;padding:1px 5px">Ctrl K</span>
+        </button>
+        <span style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">Synced 15h ago</span>
+      </div>
+    </header>
+
+    <main style="flex:1 1 auto;padding:22px 28px 32px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px">
+        <div>
+          <h1 style="margin:0;font-size:22px;font-weight:600;letter-spacing:-0.005em">{{pageTitle}}</h1>
+          <div style="margin-top:2px;color:#98A2AD;font-size:13px">Saturday, November 21, 2026</div>
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+          <div role="group" aria-label="Date range" style="display:flex;border:1px solid #2B3138;border-radius:3px;overflow:hidden">
+            <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4">
+              <button onClick="{{r.go}}" style="{{r.style}}">{{r.label}}</button>
+            </sc-for>
+          </div>
+          <button style="height:32px;padding:0 14px;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;color:#E4E8EC;font-size:13px;cursor:pointer">Export</button>
+        </div>
+      </div>
+
+      <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+        <!-- Pinned boards -->
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px">
+          <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD;margin-right:6px">Pinned</span>
+          <sc-for list="{{pins}}" as="pin" hint-placeholder-count="4">
+            <button onClick="{{pin.go}}" style="height:30px;padding:0 12px;border:1px solid #3A424A;border-radius:15px;background:#1A1E23;color:#E4E8EC;font-size:13px;cursor:pointer">{{pin.label}}</button>
+          </sc-for>
+          <button aria-label="Pin a board" style="height:30px;width:30px;border:1px dashed #3A424A;border-radius:15px;background:transparent;color:#98A2AD;font-size:16px;cursor:pointer">+</button>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:8px 24px;padding:10px 14px;border:1px solid #2B3138;border-left:3px solid #E8A33D;border-radius:3px;background:#1A1E23;font-size:13px">
+          <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">1</b> unreviewed data anomaly</span>
+          <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">105</b> workout notes awaiting review</span>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+          <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+            <div style="border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:12px 14px 0;display:flex;flex-direction:column;gap:6px;overflow:hidden">
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{k.label}}</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:500;line-height:1.1">{{k.value}}<span style="font-size:12px;color:#98A2AD;margin-left:4px">{{k.unit}}</span></div>
+              <svg viewBox="0 0 100 28" preserveAspectRatio="none" style="width:100%;height:28px" aria-hidden="true"><polyline points="{{k.pts}}" fill="none" stroke="{{k.color}}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>
+              <div style="height:6px;margin:0 -14px;background:repeating-linear-gradient(90deg,#3A424A 0 1px,transparent 1px 8px);opacity:0.8"></div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch">
+          <section style="flex:2 1 420px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline">
+              <h2 style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Resting heart rate</h2>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#98A2AD">{{rangeLabel}} / bpm</span>
+            </div>
+            <svg viewBox="0 0 600 190" style="width:100%;height:auto;margin-top:8px" role="img" aria-label="Resting heart rate trend, illustrative">
+              <g stroke="#2B3138" stroke-width="1"><line x1="34" y1="30" x2="600" y2="30"/><line x1="34" y1="90" x2="600" y2="90"/><line x1="34" y1="150" x2="600" y2="150"/></g>
+              <g fill="#98A2AD" font-family="IBM Plex Mono" font-size="10"><text x="0" y="33">54</text><text x="0" y="93">50</text><text x="0" y="153">46</text></g>
+              <polyline points="{{chartPts}}" fill="none" stroke="#E8A33D" stroke-width="1.6" stroke-linejoin="round"/>
+              <polyline points="{{avgPts}}" fill="none" stroke="#5EA3C9" stroke-width="1.2" stroke-dasharray="4 3"/>
+            </svg>
+            <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:#98A2AD"><span><span style="display:inline-block;width:14px;height:2px;background:#E8A33D;vertical-align:middle;margin-right:6px"></span>Daily</span><span><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #5EA3C9;vertical-align:middle;margin-right:6px"></span>7-day trend</span></div>
+          </section>
+          <section style="flex:1 1 280px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+            <h2 style="margin:0 0 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Data freshness</h2>
+            <sc-for list="{{fresh}}" as="f" hint-placeholder-count="5">
+              <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #2B3138;font-size:13px">
+                <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{f.name}}</span>
+                <span style="flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">{{f.age}} / {{f.n}}</span>
+              </div>
+            </sc-for>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isOther}}" hint-placeholder-val="{{false}}">
+        <div style="border:1px dashed #3A424A;border-radius:3px;padding:48px 24px;text-align:center;color:#98A2AD">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase">Not drawn</div>
+          <div style="margin-top:6px;font-size:14px">{{pageTitle}} is empty in this prototype. It compares navigation only.</div>
+        </div>
+      </sc-if>
+    </main>
+  </div>
+
+  <!-- Command palette overlay -->
+  <sc-if value="{{paletteOpen}}" hint-placeholder-val="{{false}}">
+    <div style="position:absolute;inset:0;background:rgba(10,12,14,0.72);display:flex;justify-content:center;align-items:flex-start;padding:90px 16px 16px">
+      <div role="dialog" aria-label="Jump to" style="width:560px;max-width:100%;border:1px solid #3A424A;border-radius:4px;background:#171A1F;box-shadow:0 20px 50px rgba(0,0,0,0.5);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:0 14px;border-bottom:1px solid #2B3138">
+          <input aria-label="Search pages and boards" placeholder="Jump to a page or board" value="{{query}}" onInput="{{onQuery}}" style="flex:1 1 auto;height:46px;border:0;background:transparent;color:#E4E8EC;font-size:15px;outline:none">
+          <button onClick="{{closePalette}}" style="height:28px;padding:0 10px;border:1px solid #3A424A;border-radius:3px;background:transparent;color:#98A2AD;font-size:12px;cursor:pointer">Esc</button>
+        </div>
+        <div style="max-height:340px;overflow-y:auto;padding:6px 0">
+          <sc-for list="{{results}}" as="res" hint-placeholder-count="6">
+            <button onClick="{{res.go}}" style="display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;padding:9px 16px;border:0;background:transparent;color:#E4E8EC;font-size:14px;cursor:pointer;text-align:left">
+              <span>{{res.label}}</span>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:#98A2AD">{{res.where}}</span>
+            </button>
+          </sc-for>
+          <sc-if value="{{noResults}}" hint-placeholder-val="{{false}}">
+            <div style="padding:16px;color:#98A2AD;font-size:13px">No page matches that.</div>
+          </sc-if>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { section: 'today', page: 'Overview', range: '90D', palette: false, q: '' };
+  }
+  renderVals() {
+    const sections = {
+      today: { label: 'Today', pages: ['Overview', 'Recovery and stress'] },
+      training: { label: 'Training', pages: ['Training load', 'Activities', 'Running', 'Intensity minutes', 'Cardiovascular', 'Max HR aging'] },
+      body: { label: 'Body', pages: ['Sleep', 'Weight and body comp', 'Calories', 'Nutrition'] },
+      analysis: { label: 'Analysis', pages: ['Long-term trends', 'Correlations', 'Assessments and goals', 'Athlete profile'] },
+      system: { label: 'System', pages: ['Data quality', 'Actalog workouts', 'Admin'] }
+    };
+    const s = this.state;
+    const goPage = (sec, page) => () => this.setState({ section: sec, page: page, palette: false, q: '' });
+    const goSec = (id) => () => this.setState({ section: id, page: sections[id].pages[0] });
+    const railStyle = (id) => {
+      const on = s.section === id;
+      return 'width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:0;border-radius:3px;cursor:pointer;'
+        + 'background:' + (on ? '#20252B' : 'transparent') + ';color:' + (on ? '#E8A33D' : '#98A2AD') + ';'
+        + (on ? 'box-shadow:inset 2px 0 0 #E8A33D;' : '');
+    };
+    const all = [];
+    Object.keys(sections).forEach((id) => {
+      sections[id].pages.forEach((p) => all.push({ label: p, where: sections[id].label, sec: id }));
+    });
+    const pinDefs = [
+      { label: 'Resting HR trend', sec: 'today', page: 'Overview' },
+      { label: 'Training load', sec: 'training', page: 'Training load' },
+      { label: 'Sleep', sec: 'body', page: 'Sleep' },
+      { label: 'Data quality', sec: 'system', page: 'Data quality' }
+    ];
+    const pins = pinDefs.map((p) => ({ label: p.label, go: goPage(p.sec, p.page) }));
+    const q = s.q.trim().toLowerCase();
+    const matched = all.filter((a) => !q || a.label.toLowerCase().indexOf(q) >= 0 || a.where.toLowerCase().indexOf(q) >= 0);
+    const results = matched.map((a) => ({ label: a.label, where: a.where, go: goPage(a.sec, a.label) }));
+    const wave = (seed, n, h, amp) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const v = Math.sin(i * 0.9 + seed) * 0.5 + Math.sin(i * 2.3 + seed * 2) * 0.35 + Math.sin(i * 5.1 + seed * 3) * 0.15;
+        out.push((i / (n - 1) * 100).toFixed(1) + ',' + (h / 2 - v * amp).toFixed(1));
+      }
+      return out.join(' ');
+    };
+    const kpiDefs = [
+      { label: 'Steps', value: '9,031', unit: '', color: '#5EA3C9', seed: 1 },
+      { label: 'Resting HR', value: '50', unit: 'bpm', color: '#E8A33D', seed: 2 },
+      { label: 'Avg stress', value: '20', unit: '', color: '#C98B5E', seed: 3 },
+      { label: 'Body battery', value: '87', unit: '', color: '#5BB98C', seed: 4 },
+      { label: 'SpO2', value: '98', unit: '%', color: '#9A8FD0', seed: 5 },
+      { label: 'Respiration', value: '14', unit: 'br/min', color: '#6FB7B7', seed: 6 }
+    ];
+    const kpis = kpiDefs.map((k) => ({ label: k.label, value: k.value, unit: k.unit, color: k.color, pts: wave(k.seed, 30, 28, 9) }));
+    const chartPts = [];
+    const avgPts = [];
+    for (let i = 0; i < 90; i++) {
+      const v = Math.sin(i * 0.5) * 0.5 + Math.sin(i * 1.7 + 1) * 0.35 + Math.sin(i * 4.3) * 0.15;
+      const x = 34 + (i / 89) * 566;
+      chartPts.push(x.toFixed(1) + ',' + (88 - v * 26 - i * 0.12).toFixed(1));
+      avgPts.push(x.toFixed(1) + ',' + (88 - i * 0.12 - Math.sin(i * 0.5) * 6).toFixed(1));
+    }
+    const fresh = [
+      { name: 'Actalog sync', age: '15h', n: '379' },
+      { name: 'garmindb:stress', age: '16h', n: '5,273' },
+      { name: 'garmindb:monitoring_rr', age: '16h', n: '5,309' },
+      { name: 'garmindb:monitoring_steps', age: '16h', n: '499' },
+      { name: 'garmindb:hr_zones', age: '16h', n: '5' }
+    ];
+    const ranges = ['7D', '30D', '90D', '1Y'].map((r) => ({
+      label: r,
+      go: () => this.setState({ range: r }),
+      style: 'height:32px;min-width:44px;padding:0 12px;border:0;cursor:pointer;font-family:\'IBM Plex Mono\',monospace;font-size:12px;'
+        + 'background:' + (s.range === r ? '#E8A33D' : '#1A1E23') + ';color:' + (s.range === r ? '#13161A' : '#E4E8EC') + ';'
+    }));
+    return {
+      goToday: goSec('today'), goTraining: goSec('training'), goBody: goSec('body'), goAnalysis: goSec('analysis'), goSystem: goSec('system'),
+      railToday: railStyle('today'), railTraining: railStyle('training'), railBody: railStyle('body'), railAnalysis: railStyle('analysis'), railSystem: railStyle('system'),
+      openPalette: () => this.setState({ palette: true, q: '' }),
+      closePalette: () => this.setState({ palette: false, q: '' }),
+      onQuery: (e) => this.setState({ q: e.target.value }),
+      paletteOpen: s.palette, query: s.q, results, noResults: results.length === 0,
+      pins, ranges, kpis, fresh,
+      chartPts: chartPts.join(' '), avgPts: avgPts.join(' '),
+      rangeLabel: s.range,
+      crumb: sections[s.section].label + ' / ' + s.page,
+      pageTitle: s.page,
+      isOverview: s.page === 'Overview',
+      isOther: s.page !== 'Overview'
+    };
+  }
+}
+</script>
+</body>
+</html>

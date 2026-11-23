@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Option 2: top section bar and page tabs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#13161A}
+button{font-family:inherit}
+button:focus-visible{outline:2px solid #E8A33D;outline-offset:-2px}
+</style>
+</helmet>
+<div style="min-height:900px;background:#13161A;color:#E4E8EC;font-family:'IBM Plex Sans',sans-serif;font-size:14px;display:flex;flex-direction:column">
+
+  <!-- Top bar: brand, sections, utilities -->
+  <header style="display:flex;flex-wrap:wrap;align-items:stretch;gap:0 24px;padding:0 28px;border-bottom:1px solid #2B3138;background:#101316">
+    <div style="display:flex;align-items:center;gap:10px;height:48px">
+      <div style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:1px solid #E8A33D;border-radius:3px;color:#E8A33D;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:12px">GV</div>
+      <span style="font-weight:600;letter-spacing:0.01em">GarminView</span>
+    </div>
+    <nav aria-label="Sections" style="display:flex;flex-wrap:wrap;align-items:stretch;flex:1 1 auto">
+      <sc-for list="{{sections}}" as="s" hint-placeholder-count="5">
+        <button onClick="{{s.go}}" style="{{s.style}}">{{s.label}}</button>
+      </sc-for>
+    </nav>
+    <div style="display:flex;align-items:center;gap:14px;height:48px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">
+      <span>Synced 15h ago</span>
+      <button style="height:30px;padding:0 12px;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;color:#98A2AD;font-size:12px;cursor:pointer">Search</button>
+    </div>
+  </header>
+
+  <!-- Page header + page tabs -->
+  <div style="padding:22px 28px 0;border-bottom:1px solid #2B3138;background:#13161A">
+    <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{crumb}}</div>
+        <h1 style="margin:4px 0 0;font-size:22px;font-weight:600;letter-spacing:-0.005em">{{pageTitle}}</h1>
+        <div style="margin-top:2px;color:#98A2AD;font-size:13px">Saturday, November 21, 2026</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <div role="group" aria-label="Date range" style="display:flex;border:1px solid #2B3138;border-radius:3px;overflow:hidden">
+          <sc-for list="{{ranges}}" as="r" hint-placeholder-count="4">
+            <button onClick="{{r.go}}" style="{{r.style}}">{{r.label}}</button>
+          </sc-for>
+        </div>
+        <button style="height:32px;padding:0 14px;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;color:#E4E8EC;font-size:13px;cursor:pointer">Export</button>
+      </div>
+    </div>
+    <div role="tablist" aria-label="Pages" style="display:flex;gap:4px;margin-top:16px;overflow-x:auto">
+      <sc-for list="{{tabs}}" as="t" hint-placeholder-count="4">
+        <button role="tab" onClick="{{t.go}}" style="{{t.style}}">{{t.label}}</button>
+      </sc-for>
+    </div>
+  </div>
+
+  <main style="flex:1 1 auto;padding:20px 28px 32px;display:flex;flex-direction:column;gap:18px">
+    <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+      <div style="display:flex;flex-wrap:wrap;gap:8px 24px;padding:10px 14px;border:1px solid #2B3138;border-left:3px solid #E8A33D;border-radius:3px;background:#1A1E23;font-size:13px">
+        <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">1</b> unreviewed data anomaly</span>
+        <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">105</b> workout notes awaiting review</span>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+        <sc-for list="{{kpis}}" as="k" hint-placeholder-count="6">
+          <div style="border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:12px 14px 0;display:flex;flex-direction:column;gap:6px;overflow:hidden">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{k.label}}</div>
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:28px;font-weight:500;line-height:1.1">{{k.value}}<span style="font-size:12px;color:#98A2AD;margin-left:4px">{{k.unit}}</span></div>
+            <svg viewBox="0 0 100 28" preserveAspectRatio="none" style="width:100%;height:28px" aria-hidden="true"><polyline points="{{k.pts}}" fill="none" stroke="{{k.color}}" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg>
+            <div style="height:6px;margin:0 -14px;background:repeating-linear-gradient(90deg,#3A424A 0 1px,transparent 1px 8px);opacity:0.8"></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:stretch">
+        <section style="flex:2 1 420px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+          <div style="display:flex;justify-content:space-between;align-items:baseline">
+            <h2 style="margin:0;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Resting heart rate</h2>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:#98A2AD">{{rangeLabel}} / bpm</span>
+          </div>
+          <svg viewBox="0 0 600 190" style="width:100%;height:auto;margin-top:8px" role="img" aria-label="Resting heart rate trend, illustrative">
+            <g stroke="#2B3138" stroke-width="1"><line x1="34" y1="30" x2="600" y2="30"/><line x1="34" y1="90" x2="600" y2="90"/><line x1="34" y1="150" x2="600" y2="150"/></g>
+            <g fill="#98A2AD" font-family="IBM Plex Mono" font-size="10"><text x="0" y="33">54</text><text x="0" y="93">50</text><text x="0" y="153">46</text></g>
+            <polyline points="{{chartPts}}" fill="none" stroke="#E8A33D" stroke-width="1.6" stroke-linejoin="round"/>
+            <polyline points="{{avgPts}}" fill="none" stroke="#5EA3C9" stroke-width="1.2" stroke-dasharray="4 3"/>
+          </svg>
+          <div style="display:flex;gap:16px;margin-top:6px;font-size:12px;color:#98A2AD"><span><span style="display:inline-block;width:14px;height:2px;background:#E8A33D;vertical-align:middle;margin-right:6px"></span>Daily</span><span><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #5EA3C9;vertical-align:middle;margin-right:6px"></span>7-day trend</span></div>
+        </section>
+        <section style="flex:1 1 280px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+          <h2 style="margin:0 0 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:500;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Data freshness</h2>
+          <sc-for list="{{fresh}}" as="f" hint-placeholder-count="5">
+            <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #2B3138;font-size:13px">
+              <span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{f.name}}</span>
+              <span style="flex:0 0 auto;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">{{f.age}} / {{f.n}}</span>
+            </div>
+          </sc-for>
+        </section>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isOther}}" hint-placeholder-val="{{false}}">
+      <div style="border:1px dashed #3A424A;border-radius:3px;padding:48px 24px;text-align:center;color:#98A2AD">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase">Not drawn</div>
+        <div style="margin-top:6px;font-size:14px">{{pageTitle}} is empty in this prototype. It compares navigation only.</div>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":900}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { section: 'today', page: 'Overview', range: '90D' };
+  }
+  renderVals() {
+    const sections = {
+      today: { label: 'Today', pages: ['Overview', 'Recovery and stress'] },
+      training: { label: 'Training', pages: ['Training load', 'Activities', 'Running', 'Intensity minutes', 'Cardiovascular', 'Max HR aging'] },
+      body: { label: 'Body', pages: ['Sleep', 'Weight and body comp', 'Calories', 'Nutrition'] },
+      analysis: { label: 'Analysis', pages: ['Long-term trends', 'Correlations', 'Assessments and goals', 'Athlete profile'] },
+      system: { label: 'System', pages: ['Data quality', 'Actalog workouts', 'Admin'] }
+    };
+    const s = this.state;
+    const cur = sections[s.section];
+    const secList = Object.keys(sections).map((id) => {
+      const on = s.section === id;
+      return {
+        label: sections[id].label,
+        go: () => this.setState({ section: id, page: sections[id].pages[0] }),
+        style: 'height:48px;padding:0 18px;border:0;cursor:pointer;font-size:14px;font-weight:500;background:transparent;'
+          + 'color:' + (on ? '#E4E8EC' : '#98A2AD') + ';'
+          + 'box-shadow:' + (on ? 'inset 0 -2px 0 #E8A33D' : 'none') + ';'
+      };
+    });
+    const tabs = cur.pages.map((p) => {
+      const on = s.page === p;
+      return {
+        label: p,
+        go: () => this.setState({ page: p }),
+        style: 'flex:0 0 auto;height:38px;padding:0 14px;border:0;cursor:pointer;font-size:13px;background:' + (on ? '#1A1E23' : 'transparent')
+          + ';color:' + (on ? '#E4E8EC' : '#98A2AD') + ';border-radius:3px 3px 0 0;'
+          + 'box-shadow:' + (on ? 'inset 0 2px 0 #E8A33D' : 'none') + ';'
+      };
+    });
+    const wave = (seed, n, h, amp) => {
+      const out = [];
+      for (let i = 0; i < n; i++) {
+        const v = Math.sin(i * 0.9 + seed) * 0.5 + Math.sin(i * 2.3 + seed * 2) * 0.35 + Math.sin(i * 5.1 + seed * 3) * 0.15;
+        out.push((i / (n - 1) * 100).toFixed(1) + ',' + (h / 2 - v * amp).toFixed(1));
+      }
+      return out.join(' ');
+    };
+    const kpiDefs = [
+      { label: 'Steps', value: '9,031', unit: '', color: '#5EA3C9', seed: 1 },
+      { label: 'Resting HR', value: '50', unit: 'bpm', color: '#E8A33D', seed: 2 },
+      { label: 'Avg stress', value: '20', unit: '', color: '#C98B5E', seed: 3 },
+      { label: 'Body battery', value: '87', unit: '', color: '#5BB98C', seed: 4 },
+      { label: 'SpO2', value: '98', unit: '%', color: '#9A8FD0', seed: 5 },
+      { label: 'Respiration', value: '14', unit: 'br/min', color: '#6FB7B7', seed: 6 }
+    ];
+    const kpis = kpiDefs.map((k) => ({ label: k.label, value: k.value, unit: k.unit, color: k.color, pts: wave(k.seed, 30, 28, 9) }));
+    const chartPts = [];
+    const avgPts = [];
+    for (let i = 0; i < 90; i++) {
+      const v = Math.sin(i * 0.5) * 0.5 + Math.sin(i * 1.7 + 1) * 0.35 + Math.sin(i * 4.3) * 0.15;
+      const x = 34 + (i / 89) * 566;
+      chartPts.push(x.toFixed(1) + ',' + (88 - v * 26 - i * 0.12).toFixed(1));
+      avgPts.push(x.toFixed(1) + ',' + (88 - i * 0.12 - Math.sin(i * 0.5) * 6).toFixed(1));
+    }
+    const fresh = [
+      { name: 'Actalog sync', age: '15h', n: '379' },
+      { name: 'garmindb:stress', age: '16h', n: '5,273' },
+      { name: 'garmindb:monitoring_rr', age: '16h', n: '5,309' },
+      { name: 'garmindb:monitoring_steps', age: '16h', n: '499' },
+      { name: 'garmindb:hr_zones', age: '16h', n: '5' }
+    ];
+    const ranges = ['7D', '30D', '90D', '1Y'].map((r) => ({
+      label: r,
+      go: () => this.setState({ range: r }),
+      style: 'height:32px;min-width:44px;padding:0 12px;border:0;cursor:pointer;font-family:\'IBM Plex Mono\',monospace;font-size:12px;'
+        + 'background:' + (s.range === r ? '#E8A33D' : '#1A1E23') + ';color:' + (s.range === r ? '#13161A' : '#E4E8EC') + ';'
+    }));
+    return {
+      sections: secList, tabs, ranges, kpis, fresh,
+      chartPts: chartPts.join(' '), avgPts: avgPts.join(' '),
+      rangeLabel: s.range,
+      crumb: cur.label + ' / ' + s.page,
+      pageTitle: s.page,
+      isOverview: s.page === 'Overview',
+      isOther: s.page !== 'Overview'
+    };
+  }
+}
+</script>
+</body>
+</html>

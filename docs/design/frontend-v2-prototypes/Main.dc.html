@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Home: icon rail, calendar overview</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+body{margin:0;background:#13161A}
+button{font-family:inherit}
+button:focus-visible{outline:2px solid #E8A33D;outline-offset:2px}
+@media (max-width:640px){.mini{display:none !important}.tag{display:none !important}}
+</style>
+</helmet>
+<div style="min-height:960px;background:#13161A;color:#E4E8EC;font-family:'IBM Plex Sans',sans-serif;font-size:14px;display:flex;flex-wrap:wrap;align-items:stretch">
+
+  <!-- Navigation: icon rail + section panel -->
+  <nav aria-label="Primary" style="display:flex;flex:0 0 auto;border-right:1px solid #2B3138;background:#171A1F">
+    <div style="width:56px;display:flex;flex-direction:column;align-items:center;gap:6px;padding:12px 0;border-right:1px solid #2B3138;background:#101316">
+      <div style="width:32px;height:32px;margin-bottom:10px;display:flex;align-items:center;justify-content:center;border:1px solid #E8A33D;border-radius:3px;color:#E8A33D;font-family:'IBM Plex Mono',monospace;font-weight:500;font-size:13px">GV</div>
+      <button aria-label="Today" title="Today" onClick="{{goToday}}" style="{{railToday}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="4.5" width="14" height="12" rx="1.5"/><path d="M3 8.5h14M7 3v3M13 3v3"/></svg></button>
+      <button aria-label="Training" title="Training" onClick="{{goTraining}}" style="{{railTraining}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M2 10h3.5l2-5 3.5 10 2-5H18"/></svg></button>
+      <button aria-label="Body" title="Body" onClick="{{goBody}}" style="{{railBody}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="10" cy="6" r="2.8"/><path d="M4.5 17c0-3.2 2.4-5.5 5.5-5.5s5.5 2.3 5.5 5.5"/></svg></button>
+      <button aria-label="Analysis" title="Analysis" onClick="{{goAnalysis}}" style="{{railAnalysis}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 16h14"/><path d="M5.5 13v-3M10 13V5M14.5 13V8"/></svg></button>
+      <button aria-label="System" title="System" onClick="{{goSystem}}" style="{{railSystem}}"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M3 6h14M3 14h14"/><circle cx="7" cy="6" r="1.8" fill="#101316"/><circle cx="13" cy="14" r="1.8" fill="#101316"/></svg></button>
+    </div>
+    <div style="width:208px;padding:16px 0">
+      <div style="padding:0 16px 10px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{sectionLabel}}</div>
+      <sc-for list="{{pages}}" as="p" hint-placeholder-count="4">
+        <button onClick="{{p.go}}" style="{{p.style}}">{{p.label}}</button>
+      </sc-for>
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main style="flex:999 1 560px;min-width:0;padding:22px 28px 32px;display:flex;flex-direction:column;gap:16px">
+    <header style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px">
+      <div>
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{crumb}}</div>
+        <h1 style="margin:4px 0 0;font-size:22px;font-weight:600;letter-spacing:-0.005em">{{pageTitle}}</h1>
+        <div style="margin-top:2px;color:#98A2AD;font-size:13px">Saturday, November 21, 2026</div>
+      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <button style="height:32px;padding:0 14px;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;color:#E4E8EC;font-size:13px;cursor:pointer">Export</button>
+      </div>
+    </header>
+
+    <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+      <!-- Alerts -->
+      <div style="display:flex;flex-wrap:wrap;gap:8px 24px;padding:10px 14px;border:1px solid #2B3138;border-left:3px solid #E8A33D;border-radius:3px;background:#1A1E23;font-size:13px">
+        <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">1</b> unreviewed data anomaly</span>
+        <span><b style="font-family:'IBM Plex Mono',monospace;font-weight:500">105</b> workout notes awaiting review</span>
+      </div>
+
+      <!-- Month summary -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px">
+        <sc-for list="{{summary}}" as="m" hint-placeholder-count="4">
+          <div style="border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:10px 12px">
+            <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{m.label}}</div>
+            <div style="margin-top:2px;font-family:'IBM Plex Mono',monospace;font-size:20px;font-weight:500">{{m.value}}<span style="font-size:12px;color:#98A2AD;margin-left:4px">{{m.unit}}</span></div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start">
+        <!-- Calendar -->
+        <section style="flex:3 1 520px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px">
+            <div style="display:flex;align-items:center;gap:8px">
+              <button aria-label="Previous month" onClick="{{prevMonth}}" disabled="{{prevDisabled}}" style="width:30px;height:30px;border:1px solid #2B3138;border-radius:3px;background:#13161A;color:#E4E8EC;cursor:pointer;font-size:16px;opacity:{{prevOpacity}}">&lsaquo;</button>
+              <h2 style="margin:0;min-width:150px;text-align:center;font-size:16px;font-weight:600">{{monthTitle}}</h2>
+              <button aria-label="Next month" onClick="{{nextMonth}}" disabled="{{nextDisabled}}" style="width:30px;height:30px;border:1px solid #2B3138;border-radius:3px;background:#13161A;color:#E4E8EC;cursor:pointer;font-size:16px;opacity:{{nextOpacity}}">&rsaquo;</button>
+            </div>
+            <div role="group" aria-label="Shade squares by" style="display:flex;flex-wrap:wrap;border:1px solid #2B3138;border-radius:3px;overflow:hidden">
+              <sc-for list="{{metrics}}" as="mt" hint-placeholder-count="6">
+                <button onClick="{{mt.go}}" style="{{mt.style}}">{{mt.label}}</button>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:12px">
+            <sc-for list="{{weekdays}}" as="w" hint-placeholder-count="7">
+              <div style="padding:0 2px 2px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">{{w}}</div>
+            </sc-for>
+            <sc-for list="{{cells}}" as="c" hint-placeholder-count="35">
+              <sc-if value="{{c.blank}}" hint-placeholder-val="{{false}}">
+                <div style="aspect-ratio:1/1"></div>
+              </sc-if>
+              <sc-if value="{{c.show}}" hint-placeholder-val="{{true}}">
+                <button aria-label="{{c.label}}" onClick="{{c.go}}" disabled="{{c.disabled}}" style="{{c.style}}">
+                  <span style="display:flex;justify-content:space-between;align-items:baseline;gap:4px">
+                    <span style="{{c.dateStyle}}">{{c.date}}</span>
+                    <span class="tag" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:#E8A33D;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{c.tag}}</span>
+                  </span>
+                  <span style="{{c.valueStyle}}">{{c.valueText}}</span>
+                  <span style="{{c.rowsStyle}}">
+                    <span style="display:flex;align-items:center;gap:4px">
+                      <span style="width:6px;height:6px;flex:0 0 auto;background:#EF6B45"></span>
+                      <span class="mini" style="min-width:30px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#E4E8EC">{{c.w}}</span>
+                      <span style="flex:1 1 auto;height:4px;background:#2B3138"><span style="{{c.wBar}}"></span></span>
+                    </span>
+                    <span style="display:flex;align-items:center;gap:4px">
+                      <span style="width:6px;height:6px;flex:0 0 auto;background:#4FA8D8"></span>
+                      <span class="mini" style="min-width:30px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#E4E8EC">{{c.n}}</span>
+                      <span style="flex:1 1 auto;height:4px;background:#2B3138"><span style="{{c.nBar}}"></span></span>
+                    </span>
+                  </span>
+                </button>
+              </sc-if>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px;margin-top:12px;font-size:12px;color:#98A2AD">
+            <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:8px;height:8px;background:#EF6B45"></span>Workout kcal (logged activities)</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:8px;height:8px;background:#4FA8D8"></span>Non-workout kcal (active kcal minus workouts)</span>
+            <span style="display:flex;align-items:center;gap:8px">Shade: low <span style="display:inline-block;width:60px;height:6px;background:linear-gradient(90deg,#1A1E23,#4A525A)"></span> high ({{legendRange}})</span>
+            <span style="display:flex;align-items:center;gap:6px"><span style="display:inline-block;width:12px;height:12px;border:1px dashed #3A424A"></span>No data or future</span>
+            <span><span style="font-family:'IBM Plex Mono',monospace;color:#E8A33D">HIIT 51m</span> logged activity</span>
+          </div>
+        </section>
+
+        <!-- Selected day -->
+        <aside style="flex:1 1 260px;min-width:0;border:1px solid #2B3138;border-radius:3px;background:#1A1E23;padding:14px 16px">
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Selected day</div>
+          <div style="margin-top:4px;font-size:16px;font-weight:600">{{detailTitle}}</div>
+          <sc-if value="{{hasDetail}}" hint-placeholder-val="{{true}}">
+            <div style="margin-top:10px">
+              <sc-for list="{{detailRows}}" as="d" hint-placeholder-count="7">
+                <div style="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid #2B3138;font-size:13px">
+                  <span style="color:#98A2AD">{{d.k}}</span>
+                  <span style="font-family:'IBM Plex Mono',monospace;font-size:13px">{{d.v}}</span>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{hasActs}}" hint-placeholder-val="{{false}}">
+              <div style="margin-top:10px;padding-top:10px;border-top:1px solid #2B3138">
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase;color:#98A2AD">Activities</div>
+                <sc-for list="{{detailActs}}" as="a" hint-placeholder-count="1">
+                  <div style="margin-top:6px;font-size:13px">{{a.name}}<div style="font-family:'IBM Plex Mono',monospace;font-size:12px;color:#98A2AD">{{a.meta}}</div></div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </sc-if>
+          <sc-if value="{{noDetail}}" hint-placeholder-val="{{false}}">
+            <div style="margin-top:10px;color:#98A2AD;font-size:13px">No data for this day.</div>
+          </sc-if>
+        </aside>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isOther}}" hint-placeholder-val="{{false}}">
+      <div style="border:1px dashed #3A424A;border-radius:3px;padding:48px 24px;text-align:center;color:#98A2AD">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:0.08em;text-transform:uppercase">Not drawn</div>
+        <div style="margin-top:6px;font-size:14px">{{pageTitle}} is empty in this prototype.</div>
+      </div>
+    </sc-if>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":960}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { section: 'today', page: 'Overview', month: 10, metric: 'st', sel: '11-21' };
+  }
+  renderVals() {
+    // Real data from the running app, Oct 1 - Nov 21 2026.
+    // Row: [MM-DD, steps, resting HR, body battery max, avg stress, sleep min, sleep score, intensity min, active kcal, activities[name, min, kcal, avg HR]]
+    const RAW = [["10-01",7089,54,50,37,453,68,4,126,[]],["10-02",6603,57,86,43,0,null,76,468,[["HIIT",67,466,111]]],["10-03",7101,54,57,27,490,78,52,403,[["HIIT",112,493,91]]],["10-04",10798,51,77,24,418,78,3,171,[]],["10-05",5292,51,85,34,446,83,74,446,[["HIIT",61,455,111]]],["10-06",5808,54,76,34,0,null,0,490,[["Missing watch",60,469,null]]],["10-07",8518,51,81,33,451,81,0,166,[]],["10-08",5867,52,53,23,310,66,0,89,[]],["10-09",22078,56,44,35,261,51,6,696,[]],["10-10",11551,57,8,47,164,27,4,403,[]],["10-11",6722,55,60,29,0,null,0,120,[]],["10-12",7729,53,72,32,420,79,78,500,[["HIIT",83,532,112]]],["10-13",6394,55,83,36,0,null,0,91,[]],["10-14",5208,54,67,33,341,71,73,424,[["HIIT",58,428,112]]],["10-15",5441,54,60,26,453,80,0,87,[]],["10-16",5824,52,71,30,476,79,0,74,[]],["10-17",9866,53,69,27,473,75,0,163,[]],["10-18",6834,49,69,25,473,72,0,86,[]],["10-19",6756,55,73,26,461,80,54,325,[["HIIT",57,327,100]]],["10-20",7843,56,64,23,435,80,42,285,[]],["10-21",6189,55,80,23,0,null,0,92,[]],["10-22",5749,56,72,23,447,81,0,74,[]],["10-23",4855,54,74,29,416,78,66,390,[["HIIT",62,411,104]]],["10-24",8554,54,82,25,606,67,44,330,[["HIIT",24,249,128]]],["10-25",14012,57,58,30,420,71,155,925,[["Albany Hiking",228,1139,98]]],["10-26",8369,56,66,24,416,69,72,463,[["HIIT",52,434,119]]],["10-27",4533,58,60,39,0,null,89,540,[["HIIT",62,552,122]]],["10-28",4953,56,60,24,418,77,0,79,[]],["10-29",5589,53,84,20,447,86,0,104,[]],["10-30",5021,53,94,28,475,82,88,533,[["HIIT",57,483,117]]],["10-31",12018,52,86,22,488,86,67,585,[]],["11-01",7530,51,88,21,556,73,0,100,[]],["11-02",7968,50,99,25,459,87,58,387,[["HIIT",51,343,107]]],["11-03",7450,52,64,28,423,75,0,114,[]],["11-04",5095,54,83,33,0,null,81,443,[["HIIT",60,477,115]]],["11-05",6008,53,80,28,466,85,0,91,[]],["11-06",5559,53,75,30,417,83,134,799,[["HIIT",49,453,122]]],["11-07",9569,56,79,31,0,null,74,525,[["HIIT",53,481,123]]],["11-08",9300,56,65,26,445,73,0,146,[]],["11-09",5916,53,63,26,0,null,27,257,[["HIIT",49,233,90]]],["11-10",6354,51,90,23,468,88,36,305,[]],["11-11",12077,53,79,32,449,85,20,397,[["HIIT",42,266,106]]],["11-12",5922,54,65,24,441,80,54,358,[]],["11-13",8003,53,78,27,438,82,0,199,[["HIIT",33,286,114]]],["11-14",11231,52,87,27,448,85,76,594,[["HIIT",54,447,117]]],["11-15",10637,55,88,30,0,null,65,467,[["HIIT",69,427,108]]],["11-16",5966,52,84,21,440,81,42,281,[["HIIT",52,282,97]]],["11-17",6581,51,84,21,499,87,0,76,[]],["11-18",8399,51,92,19,457,85,0,134,[]],["11-19",7380,50,94,27,425,89,0,120,[]],["11-20",2771,51,78,27,410,82,0,23,[]],["11-21",9854,50,87,26,450,83,87,619,[]]];
+    const REC = {};
+    RAW.forEach((r) => {
+      REC[r[0]] = { st: r[1], rhr: r[2], bb: r[3], str: r[4], sl: r[5] > 0 ? r[5] : null, ss: r[6], im: r[7], ka: r[8], act: r[9] };
+    });
+    const s = this.state;
+    const pad = (n) => (n < 10 ? '0' + n : '' + n);
+    const kfmt = (n) => (n >= 1000 ? (n / 1000).toFixed(1) + 'k' : '' + n);
+    const hfmt = (m) => (m / 60).toFixed(1) + 'h';
+    const MET = {
+      st: { label: 'Steps', get: (r) => r.st, fmt: kfmt, unit: '' },
+      sl: { label: 'Sleep', get: (r) => r.sl, fmt: hfmt, unit: '' },
+      rhr: { label: 'Resting HR', get: (r) => r.rhr, fmt: (n) => '' + n, unit: 'bpm' },
+      bb: { label: 'Body battery', get: (r) => r.bb, fmt: (n) => '' + n, unit: '' },
+      str: { label: 'Stress', get: (r) => r.str, fmt: (n) => '' + n, unit: '' },
+      ka: { label: 'Active kcal', get: (r) => r.ka, fmt: (n) => '' + n, unit: '' }
+    };
+    const order = ['st', 'sl', 'rhr', 'bb', 'str', 'ka'];
+    const cur = MET[s.metric];
+    // Normalise over all data so months compare on one scale.
+    let lo = Infinity, hi = -Infinity;
+    Object.keys(REC).forEach((k) => {
+      const v = cur.get(REC[k]);
+      if (v != null) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    });
+    const norm = (v) => (hi === lo ? 0 : Math.max(0, Math.min(1, (v - lo) / (hi - lo))));
+    // Workout kcal = sum of logged activity kcal; non-workout = active kcal minus workout kcal (never below 0).
+    const split = (r) => {
+      const w = r.act.reduce((t, a) => t + (a[2] || 0), 0);
+      return { w: w, n: r.ka == null ? null : Math.max(0, r.ka - w) };
+    };
+    let wMax = 1, nMax = 1;
+    Object.keys(REC).forEach((k) => {
+      const p = split(REC[k]);
+      wMax = Math.max(wMax, p.w);
+      if (p.n != null) nMax = Math.max(nMax, p.n);
+    });
+    const barW = (v, mx, col) => 'display:block;height:4px;background:' + col + ';width:' + (v > 0 ? Math.max(6, Math.round((v / mx) * 100)) : 0) + '%;';
+
+    const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const first = new Date(2026, s.month, 1);
+    const offset = (first.getDay() + 6) % 7;
+    const days = new Date(2026, s.month + 1, 0).getDate();
+    const todayMonth = 10, todayDay = 21;
+    const cells = [];
+    for (let i = 0; i < offset; i++) cells.push({ blank: true, show: false });
+    for (let d = 1; d <= days; d++) {
+      const key = pad(s.month + 1) + '-' + pad(d);
+      const rec = REC[key];
+      const future = s.month === todayMonth && d > todayDay;
+      const isToday = s.month === todayMonth && d === todayDay;
+      const isSel = s.sel === key;
+      const base = 'aspect-ratio:1/1;position:relative;overflow:hidden;display:flex;flex-direction:column;justify-content:space-between;padding:8px 8px 10px;border-radius:3px;text-align:left;color:#E4E8EC;min-width:0;';
+      const c = { blank: false, show: true, date: '' + d, tag: '', w: '', n: '', wBar: 'display:none', nBar: 'display:none', rowsStyle: 'display:none', valueText: '', disabled: false };
+      c.dateStyle = 'font-family:\'IBM Plex Mono\',monospace;font-size:12px;font-weight:' + (isToday ? 500 : 400) + ';color:' + (isToday ? '#E8A33D' : '#C3CAD1') + ';' + (isToday ? 'text-decoration:underline;text-underline-offset:3px;' : '');
+      if (future || !rec) {
+        c.disabled = true;
+        c.style = base + 'background:transparent;border:1px dashed #2B3138;cursor:default;';
+        c.valueStyle = 'font-size:11px;color:#98A2AD;';
+        c.valueText = future ? '' : 'no data';
+        c.label = d + ' ' + monthNames[s.month] + (future ? ', future' : ', no data');
+      } else {
+        const v = cur.get(rec);
+        const n = v == null ? null : norm(v);
+        const a = n == null ? 0 : 0.02 + 0.12 * n;
+        c.style = base + 'cursor:pointer;background-color:#1A1E23;background-image:linear-gradient(rgba(190,205,220,' + a.toFixed(3) + '),rgba(190,205,220,' + a.toFixed(3) + '));border:1px solid ' + (isSel ? '#E4E8EC' : '#2B3138') + ';';
+        c.valueStyle = 'font-family:\'IBM Plex Mono\',monospace;font-size:20px;font-weight:500;line-height:1;' + (v == null ? 'font-size:11px;color:#98A2AD;' : '');
+        c.valueText = v == null ? 'n/a' : cur.fmt(v);
+        const sp = split(rec);
+        c.rowsStyle = 'display:flex;flex-direction:column;gap:3px;';
+        c.w = '' + sp.w;
+        c.n = sp.n == null ? 'n/a' : '' + sp.n;
+        c.wBar = barW(sp.w, wMax, '#EF6B45');
+        c.nBar = barW(sp.n || 0, nMax, '#4FA8D8');
+        if (rec.act.length) {
+          const a0 = rec.act[0];
+          c.tag = a0[0].replace(/ .*/, '') + ' ' + a0[1] + 'm' + (rec.act.length > 1 ? ' +' + (rec.act.length - 1) : '');
+        }
+        c.label = d + ' ' + monthNames[s.month] + ', ' + cur.label + ' ' + (v == null ? 'not available' : cur.fmt(v));
+        c.go = () => this.setState({ sel: key });
+      }
+      cells.push(c);
+    }
+
+    // Selected day detail
+    const selRec = REC[s.sel];
+    let detailTitle = 'Pick a day';
+    let detailRows = [], detailActs = [];
+    if (s.sel) {
+      const mm = parseInt(s.sel.slice(0, 2), 10) - 1, dd = parseInt(s.sel.slice(3), 10);
+      detailTitle = new Date(2026, mm, dd).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+    }
+    if (selRec) {
+      const f = (v, fn) => (v == null ? 'n/a' : fn(v));
+      detailRows = [
+        { k: 'Steps', v: f(selRec.st, (n) => n.toLocaleString('en-US')) },
+        { k: 'Sleep', v: selRec.sl == null ? 'n/a' : hfmt(selRec.sl) + (selRec.ss != null ? ' / score ' + selRec.ss : '') },
+        { k: 'Resting HR', v: f(selRec.rhr, (n) => n + ' bpm') },
+        { k: 'Body battery (max)', v: f(selRec.bb, (n) => '' + n) },
+        { k: 'Avg stress', v: f(selRec.str, (n) => '' + n) },
+        { k: 'Active kcal', v: f(selRec.ka, (n) => '' + n) },
+        { k: 'Workout kcal', v: '' + split(selRec).w },
+        { k: 'Non-workout kcal', v: split(selRec).n == null ? 'n/a' : '' + split(selRec).n },
+        { k: 'Intensity minutes', v: f(selRec.im, (n) => '' + n) }
+      ];
+      detailActs = selRec.act.map((a) => ({ name: a[0], meta: a[1] + ' min / ' + a[2] + ' kcal' + (a[3] != null ? ' / avg HR ' + a[3] : '') }));
+    }
+
+    // Month summary (days with data in the shown month)
+    const monthKeys = Object.keys(REC).filter((k) => parseInt(k.slice(0, 2), 10) - 1 === s.month);
+    const avg = (arr) => (arr.length ? arr.reduce((x, y) => x + y, 0) / arr.length : null);
+    const stepsAvg = avg(monthKeys.map((k) => REC[k].st).filter((v) => v != null));
+    const sleepAvg = avg(monthKeys.map((k) => REC[k].sl).filter((v) => v != null));
+    const rhrAvg = avg(monthKeys.map((k) => REC[k].rhr).filter((v) => v != null));
+    const actCount = monthKeys.reduce((t, k) => t + REC[k].act.length, 0);
+    const summary = [
+      { label: 'Avg steps', value: stepsAvg == null ? 'n/a' : Math.round(stepsAvg).toLocaleString('en-US'), unit: '' },
+      { label: 'Avg sleep', value: sleepAvg == null ? 'n/a' : hfmt(sleepAvg), unit: '' },
+      { label: 'Avg resting HR', value: rhrAvg == null ? 'n/a' : rhrAvg.toFixed(1), unit: 'bpm' },
+      { label: 'Activities', value: '' + actCount, unit: 'logged' }
+    ];
+
+    const metrics = order.map((id) => ({
+      label: MET[id].label,
+      go: () => this.setState({ metric: id }),
+      style: 'height:30px;padding:0 11px;border:0;cursor:pointer;font-size:12px;background:' + (s.metric === id ? '#E8A33D' : '#13161A') + ';color:' + (s.metric === id ? '#13161A' : '#E4E8EC') + ';'
+    }));
+
+    // Navigation
+    const sections = {
+      today: { label: 'Today', pages: ['Overview', 'Recovery and stress'] },
+      training: { label: 'Training', pages: ['Training load', 'Activities', 'Running', 'Intensity minutes', 'Cardiovascular', 'Max HR aging'] },
+      body: { label: 'Body', pages: ['Sleep', 'Weight and body comp', 'Calories', 'Nutrition'] },
+      analysis: { label: 'Analysis', pages: ['Long-term trends', 'Correlations', 'Assessments and goals', 'Athlete profile'] },
+      system: { label: 'System', pages: ['Data quality', 'Actalog workouts', 'Admin'] }
+    };
+    const sec = sections[s.section];
+    const go = (id) => () => this.setState({ section: id, page: sections[id].pages[0] });
+    const railStyle = (id) => {
+      const on = s.section === id;
+      return 'width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:0;border-radius:3px;cursor:pointer;'
+        + 'background:' + (on ? '#20252B' : 'transparent') + ';color:' + (on ? '#E8A33D' : '#98A2AD') + ';' + (on ? 'box-shadow:inset 2px 0 0 #E8A33D;' : '');
+    };
+    const pages = sec.pages.map((p) => ({
+      label: p,
+      go: () => this.setState({ page: p }),
+      style: 'display:block;width:100%;text-align:left;padding:8px 16px;border:0;cursor:pointer;font-size:14px;background:' + (s.page === p ? '#20252B' : 'transparent')
+        + ';color:' + (s.page === p ? '#E4E8EC' : '#98A2AD') + ';' + (s.page === p ? 'box-shadow:inset 2px 0 0 #E8A33D;' : '')
+    }));
+
+    const prevDisabled = s.month <= 9, nextDisabled = s.month >= 10;
+    return {
+      goToday: go('today'), goTraining: go('training'), goBody: go('body'), goAnalysis: go('analysis'), goSystem: go('system'),
+      railToday: railStyle('today'), railTraining: railStyle('training'), railBody: railStyle('body'), railAnalysis: railStyle('analysis'), railSystem: railStyle('system'),
+      sectionLabel: sec.label, pages,
+      crumb: sec.label + ' / ' + s.page, pageTitle: s.page,
+      isOverview: s.page === 'Overview', isOther: s.page !== 'Overview',
+      summary, metrics, cells,
+      weekdays: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+      monthTitle: monthNames[s.month] + ' 2026',
+      prevMonth: () => this.setState({ month: 9, sel: '10-31' }),
+      nextMonth: () => this.setState({ month: 10, sel: '11-21' }),
+      prevDisabled, nextDisabled, prevOpacity: prevDisabled ? 0.35 : 1, nextOpacity: nextDisabled ? 0.35 : 1,
+      legendRange: cur.fmt(lo) + ' to ' + cur.fmt(hi) + (cur.unit ? ' ' + cur.unit : ''),
+      detailTitle, detailRows, detailActs,
+      hasDetail: !!selRec, noDetail: !selRec, hasActs: detailActs.length > 0
+    };
+  }
+}
+</script>
+</body>
+</html>
